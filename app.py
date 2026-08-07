@@ -42,6 +42,15 @@ st.markdown("""
         font-weight: 700;
         color: #38BDF8;
     }
+    .metric-subtext {
+        margin-top: 8px;
+        font-size: 0.85rem;
+        color: #38BDF8;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -181,7 +190,14 @@ def main():
         total_spend = filtered_df["金額 (NT$)"].sum()
         total_count = len(filtered_df)
         avg_spend = total_spend / total_count if total_count > 0 else 0
-        max_spend = filtered_df["金額 (NT$)"].max() if not filtered_df.empty else 0
+
+        if not filtered_df.empty:
+            max_row = filtered_df.loc[filtered_df["金額 (NT$)"].idxmax()]
+            max_spend = max_row["金額 (NT$)"]
+            max_desc = max_row["交易說明"]
+        else:
+            max_spend = 0
+            max_desc = "無"
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -191,7 +207,7 @@ def main():
         with col3:
             st.markdown(f'<div class="metric-card"><h4>平均單筆消費</h4><h2>NT$ {avg_spend:,.0f}</h2></div>', unsafe_allow_html=True)
         with col4:
-            st.markdown(f'<div class="metric-card"><h4>單筆最高金額</h4><h2>NT$ {max_spend:,.0f}</h2></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><h4>單筆最高金額</h4><h2>NT$ {max_spend:,.0f}</h2><div class="metric-subtext" title="{max_desc}">📍 {max_desc}</div></div>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
