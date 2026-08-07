@@ -61,6 +61,34 @@ st.markdown("""
         overflow: hidden;
         text-overflow: ellipsis;
     }
+
+    /* Style button in col2 to look 100% IDENTICAL to .metric-card */
+    .count-card-btn {
+        position: relative;
+        height: 130px;
+    }
+    .count-card-btn button {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8)) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        height: 130px !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+        backdrop-filter: blur(10px) !important;
+        padding: 16px 12px !important;
+        width: 100% !important;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .count-card-btn button:hover {
+        border-color: #38BDF8 !important;
+        transform: translateY(-2px);
+        cursor: pointer;
+    }
+    .count-card-btn button div {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -116,6 +144,19 @@ def load_and_parse_all_pdfs(pdf_dir, password):
         df = df.sort_values(by="交易日期", ascending=False)
     
     return df, pd.DataFrame(scan_results)
+
+
+# Modal Popup Dialog for Transaction Details
+@st.dialog("📋 納入統計的交易筆數明細", width="large")
+def show_transaction_count_modal(filtered_df):
+    total_cnt = len(filtered_df)
+    st.write(f"目前共 **{total_cnt}** 筆符合條件的交易（預設順序排列，點擊視窗外區域即可關閉）：")
+    if not filtered_df.empty:
+        count_display = filtered_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "卡號末四碼"]].copy()
+        count_display["交易日期"] = count_display["交易日期"].dt.strftime('%Y-%m-%d')
+        st.dataframe(count_display, use_container_width=True, height=450)
+    else:
+        st.info("無任何交易紀錄")
 
 
 def main():
@@ -259,12 +300,18 @@ def main():
             amt_font_size = "1.55rem"
             desc_font_size = "0.82rem"
 
-        # FIXED 4 METRIC CARDS (STRICT UNTOUCHED HTML & STYLING)
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
+        
         with col2:
-            st.markdown(f'<div class="metric-card"><div class="metric-title">總消費筆數</div><div class="metric-value">{total_count} 筆</div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="count-card-btn">', unsafe_allow_html=True)
+            # Render card button with html formatting matching col1, col3, col4
+            btn_html = f'<div class="metric-title">總消費筆數</div><div class="metric-value">{total_count} 筆</div>'
+            if st.button(btn_html, key="btn_trigger_count_modal", use_container_width=True):
+                show_transaction_count_modal(filtered_df)
+            st.markdown('</div>', unsafe_allow_html=True)
+
         with col3:
             st.markdown(f'<div class="metric-card"><div class="metric-title">平均單筆消費</div><div class="metric-value">NT$ {avg_spend:,.0f}</div></div>', unsafe_allow_html=True)
         with col4:
