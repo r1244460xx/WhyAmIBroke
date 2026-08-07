@@ -264,6 +264,14 @@ def main():
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         with col2:
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費筆數</div><div class="metric-value">{total_count} 筆</div></div>', unsafe_allow_html=True)
+            with st.popover(f"📋 查看筆數明細 ({total_count} 筆)", use_container_width=True):
+                st.subheader(f"📋 納入統計的 {total_count} 筆交易明細")
+                if not filtered_df.empty:
+                    count_display = filtered_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "卡號末四碼"]].copy()
+                    count_display["交易日期"] = count_display["交易日期"].dt.strftime('%Y-%m-%d')
+                    st.dataframe(count_display, use_container_width=True, height=350)
+                else:
+                    st.info("無任何交易紀錄")
         with col3:
             st.markdown(f'<div class="metric-card"><div class="metric-title">平均單筆消費</div><div class="metric-value">NT$ {avg_spend:,.0f}</div></div>', unsafe_allow_html=True)
         with col4:
