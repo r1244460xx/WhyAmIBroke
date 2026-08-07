@@ -121,16 +121,13 @@ st.markdown("""
 
         // Capture phase click listener on window
         window.addEventListener('click', function(e) {
-            const cardBtn = document.querySelector('div[data-testid="stColumn"]:nth-child(2) button');
-            if (!cardBtn) return;
-            
-            // Check if click occurred inside or on the card button
-            if (cardBtn.contains(e.target) || e.target === cardBtn) {
+            const btn = e.target.closest('button');
+            if (btn && btn.textContent.includes('總消費筆數')) {
                 const selectedText = window.getSelection() ? window.getSelection().toString().trim() : '';
-                const isTargetText = e.target.tagName === 'P' || e.target.closest('p');
                 
-                // If user clicked directly on text OR has text highlighted/selected, CANCEL button click!
-                if (isTargetText || selectedText.length > 0) {
+                // If the user clicked on any child element (like the text span/p/div) 
+                // OR if there is active highlighted text selection, we cancel the button click!
+                if (e.target !== btn || selectedText.length > 0) {
                     e.stopImmediatePropagation();
                     e.stopPropagation();
                     e.preventDefault();
