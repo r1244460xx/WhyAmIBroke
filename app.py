@@ -191,9 +191,10 @@ def main():
         avg_spend = total_spend / total_count if total_count > 0 else 0
 
         if not filtered_df.empty:
-            max_row = filtered_df.loc[filtered_df["金額 (NT$)"].idxmax()]
-            max_spend = max_row["金額 (NT$)"]
-            max_desc = str(max_row["交易說明"])
+            sorted_df = filtered_df.sort_values(by="金額 (NT$)", ascending=False)
+            top_row = sorted_df.iloc[0]
+            max_spend = top_row["金額 (NT$)"]
+            max_desc = str(top_row["交易說明"])
         else:
             max_spend = 0
             max_desc = "無"
