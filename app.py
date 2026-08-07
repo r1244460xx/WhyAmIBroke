@@ -99,6 +99,7 @@ st.markdown("""
         text-align: center !important;
         user-select: text !important;
         -webkit-user-select: text !important;
+        cursor: text !important;
     }
     div[data-testid="stColumn"]:nth-child(2) button p:first-child {
         font-size: 0.9rem !important;
@@ -112,6 +113,25 @@ st.markdown("""
         color: #38BDF8 !important;
     }
 </style>
+
+<script>
+    const setupCardTextProtection = () => {
+        const textElements = document.querySelectorAll('div[data-testid="stColumn"]:nth-child(2) button p');
+        textElements.forEach(el => {
+            el.style.cursor = 'text';
+            el.style.userSelect = 'text';
+            el.style.webkitUserSelect = 'text';
+            
+            ['click', 'mousedown', 'mouseup'].forEach(evtType => {
+                el.addEventListener(evtType, (e) => {
+                    e.stopPropagation();
+                });
+            });
+        });
+    };
+    setupCardTextProtection();
+    setTimeout(setupCardTextProtection, 500);
+</script>
 """, unsafe_allow_html=True)
 
 
@@ -327,7 +347,7 @@ def main():
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         
         with col2:
-            # Native Streamlit button styled 100% IDENTICALLY as .metric-card (No hover effects, text selectable)
+            # Native Streamlit button styled 100% IDENTICALLY as .metric-card
             card_btn_label = f"總消費筆數\n\n{total_count} 筆"
             if st.button(card_btn_label, key="btn_trigger_count_modal", use_container_width=True):
                 show_transaction_count_modal(filtered_df)
