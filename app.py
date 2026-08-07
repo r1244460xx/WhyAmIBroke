@@ -104,9 +104,9 @@ def main():
     
     config_mgr = get_config_manager()
 
-    # Sidebar settings (Only PDF dir & Password, no category features)
+    # Sidebar settings & filters
     with st.sidebar:
-        st.header("⚙️ 設定")
+        st.header("⚙️ 設定與過濾")
         
         pdf_dir = st.text_input("帳單 PDF 目錄", value=config_mgr.get("bill_pdf_dir", "./bills"))
         pdf_password = st.text_input("PDF 解密密碼", value=config_mgr.get("pdf_password", ""), type="password")
@@ -116,6 +116,16 @@ def main():
             config_mgr.set("pdf_password", pdf_password)
             st.success("設定已儲存！")
             st.rerun()
+
+        st.divider()
+        st.subheader("🔍 交易過濾設定")
+        min_amount = st.number_input(
+            "過濾小於等於此金額的項目 (NT$)",
+            min_value=0,
+            value=0,
+            step=100,
+            help="設定例如 500，則所有金額 <= 500 的交易將不會納入統計與報表"
+        )
 
     # Main logic
     if not os.path.exists(pdf_dir):
@@ -130,6 +140,10 @@ def main():
             st.subheader("📋 帳單掃描狀態報告")
             st.dataframe(scan_df, use_container_width=True)
         return
+
+    # Filter out amounts <= min_amount globally if min_amount > 0
+    if min_amount > 0:
+        df = df[df["金額 (NT$)"] > min_amount]
 
     # Tabs
     tab1, tab2, tab3 = st.tabs(["📊 總覽報表", "📑 交易明細與搜尋", "📁 帳單檔案管理"])
@@ -158,7 +172,7 @@ def main():
         with col1:
             st.markdown(f'<div class="metric-card"><h4>總消費金額</h4><h2>NT$ {total_spend:,.0f}</h2></div>', unsafe_allow_html=True)
         with col2:
-            st.markdown(f'<div class="metric-card"><h4>總交易筆數</h4><h2>{total_count} 筆</h2></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><h4>總消費筆數</h4><h2>{total_count} 筆</h2></div>', unsafe_allow_html=True)
         with col3:
             st.markdown(f'<div class="metric-card"><h4>平均單筆消費</h4><h2>NT$ {avg_spend:,.0f}</h2></div>', unsafe_allow_html=True)
         with col4:
@@ -166,43 +180,46 @@ def main():
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Charts Section
-        c_left, c_right = st.columns([1, 1])
+        if filtered_df.empty:
+            st.warning("⚠️ 當前過濾條件下無任何交易資料。")
+        else:
+            # Charts Section
+            c_left, c_right = st.columns([1, 1])
 
-        with c_left:
-            st.subheader("📈 每日消費金額分布")
-            daily_df = filtered_df.groupby(filtered_df["交易日期"].dt.strftime('%Y-%m-%d'))["金額 (NT$)"].sum().reset_index()
-            fig_bar = px.bar(
-                daily_df,
-                x="交易日期",
-                y="金額 (NT$)",
-                color_discrete_sequence=["#38BDF8"]
-            )
-            fig_bar.update_layout(margin=dict(t=20, b=20, l=20, r=20), xaxis_title="日期", yaxis_title="金額 (NT$)")
-            st.plotly_chart(fig_bar, use_container_width=True)
+            with c_left:
+                st.subheader("📈 每日消費金額分布")
+                daily_df = filtered_df.groupby(filtered_df["交易日期"].dt.strftime('%Y-%m-%d'))["金額 (NT$)"].sum().reset_index()
+                fig_bar = px.bar(
+                    daily_df,
+                    x="交易日期",
+                    y="金額 (NT$)",
+                    color_discrete_sequence=["#38BDF8"]
+                )
+                fig_bar.update_layout(margin=dict(t=20, b=20, l=20, r=20), xaxis_title="日期", yaxis_title="金額 (NT$)")
+                st.plotly_chart(fig_bar, use_container_width=True)
 
-        with c_right:
-            st.subheader("🗓️ 各月總花費對比")
-            monthly_summary = df.copy()
-            if exclude_payments:
-                monthly_summary = monthly_summary[monthly_summary["金額 (NT$)"] > 0]
-            monthly_df = monthly_summary.groupby("帳單月份")["金額 (NT$)"].sum().reset_index()
-            fig_monthly = px.bar(
-                monthly_df,
-                x="帳單月份",
-                y="金額 (NT$)",
-                text_auto=',.0f',
-                color_discrete_sequence=["#818CF8"]
-            )
-            fig_monthly.update_layout(margin=dict(t=20, b=20, l=20, r=20), xaxis_title="帳單月份", yaxis_title="總金額 (NT$)")
-            st.plotly_chart(fig_monthly, use_container_width=True)
+            with c_right:
+                st.subheader("🗓️ 各月總花費對比")
+                monthly_summary = df.copy()
+                if exclude_payments:
+                    monthly_summary = monthly_summary[monthly_summary["金額 (NT$)"] > 0]
+                monthly_df = monthly_summary.groupby("帳單月份")["金額 (NT$)"].sum().reset_index()
+                fig_monthly = px.bar(
+                    monthly_df,
+                    x="帳單月份",
+                    y="金額 (NT$)",
+                    text_auto=',.0f',
+                    color_discrete_sequence=["#818CF8"]
+                )
+                fig_monthly.update_layout(margin=dict(t=20, b=20, l=20, r=20), xaxis_title="帳單月份", yaxis_title="總金額 (NT$)")
+                st.plotly_chart(fig_monthly, use_container_width=True)
 
-        # Top Transactions Table
-        st.subheader("🔥 最高花費前 10 筆明細")
-        top10_df = filtered_df.sort_values(by="金額 (NT$)", ascending=False).head(10)
-        top10_display = top10_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "卡號末四碼"]].copy()
-        top10_display["交易日期"] = top10_display["交易日期"].dt.strftime('%Y-%m-%d')
-        st.dataframe(top10_display, use_container_width=True)
+            # Top Transactions Table
+            st.subheader("🔥 最高花費前 10 筆明細")
+            top10_df = filtered_df.sort_values(by="金額 (NT$)", ascending=False).head(10)
+            top10_display = top10_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "卡號末四碼"]].copy()
+            top10_display["交易日期"] = top10_display["交易日期"].dt.strftime('%Y-%m-%d')
+            st.dataframe(top10_display, use_container_width=True)
 
     # TAB 2: TRANSACTION DETAILS & SEARCH
     with tab2:
