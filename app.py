@@ -66,36 +66,44 @@ st.markdown("""
         text-overflow: ellipsis;
     }
 
-    /* Style col2 column so button is absolutely overlaid with 0 extra height */
-    div[data-testid="stColumn"]:nth-child(2) {
-        position: relative !important;
-    }
-    div[data-testid="stColumn"]:nth-child(2) div[data-testid="stButton"] {
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
+    /* Style col2 Streamlit button to look 100% IDENTICAL to .metric-card */
+    div[data-testid="stColumn"]:nth-child(2) button {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8)) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+        backdrop-filter: blur(10px) !important;
         height: 130px !important;
-        z-index: 10 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    div[data-testid="stColumn"]:nth-child(2) div[data-testid="stButton"] button {
+        padding: 16px 12px !important;
         width: 100% !important;
-        height: 130px !important;
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        opacity: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
         cursor: pointer !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        transition: border-color 0.2s ease, transform 0.2s ease !important;
     }
-
-    /* Hover effect for col2 card when hovering over the transparent button */
-    div[data-testid="stColumn"]:nth-child(2):hover .metric-card {
-        border-color: #38BDF8;
-        transform: translateY(-2px);
+    div[data-testid="stColumn"]:nth-child(2) button:hover {
+        border-color: #38BDF8 !important;
+        transform: translateY(-2px) !important;
+    }
+    div[data-testid="stColumn"]:nth-child(2) button p {
+        margin: 0 !important;
+        line-height: 1.2 !important;
+        text-align: center !important;
+    }
+    div[data-testid="stColumn"]:nth-child(2) button p:first-child {
+        font-size: 0.9rem !important;
+        color: #94A3B8 !important;
+        font-weight: 500 !important;
+        margin-bottom: 6px !important;
+    }
+    div[data-testid="stColumn"]:nth-child(2) button p:last-child {
+        font-size: 1.75rem !important;
+        font-weight: 700 !important;
+        color: #38BDF8 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -313,14 +321,9 @@ def main():
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         
         with col2:
-            st.markdown(
-                f'<div class="metric-card">'
-                f'  <div class="metric-title">總消費筆數</div>'
-                f'  <div class="metric-value">{total_count} 筆</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-            if st.button(" ", key="btn_trigger_count_modal"):
+            # Native Streamlit button styled 100% IDENTICALLY as .metric-card
+            card_btn_label = f"總消費筆數\n\n{total_count} 筆"
+            if st.button(card_btn_label, key="btn_trigger_count_modal", use_container_width=True):
                 show_transaction_count_modal(filtered_df)
 
         with col3:
