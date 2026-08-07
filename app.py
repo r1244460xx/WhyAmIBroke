@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern dark design with unified card heights
+# Custom CSS for modern dark design with strict metric card styling
 st.markdown("""
 <style>
     .main {
@@ -25,30 +25,41 @@ st.markdown("""
         background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8));
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
-        padding: 14px 10px;
+        padding: 16px 12px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         text-align: center;
         backdrop-filter: blur(10px);
-        min-height: 125px;
-        max-height: 125px;
+        height: 130px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         box-sizing: border-box;
+        overflow: hidden;
     }
-    .metric-card h4 {
-        margin: 0;
-        font-size: 0.9rem;
-        color: #94A3B8;
-        font-weight: 500;
+    .metric-title {
+        font-size: 0.9rem !important;
+        color: #94A3B8 !important;
+        font-weight: 500 !important;
+        margin: 0 0 6px 0 !important;
+        line-height: 1.1 !important;
     }
-    .metric-card h2 {
-        margin: 4px 0 0 0;
+    .metric-value {
         font-size: 1.75rem;
         font-weight: 700;
         color: #38BDF8;
         line-height: 1.2;
+        margin: 0;
+    }
+    .metric-sub {
+        color: #38BDF8;
+        font-weight: 500;
+        line-height: 1.2;
+        margin-top: 4px;
+        max-width: 95%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -199,31 +210,35 @@ def main():
             max_spend = 0
             max_desc = "無"
 
-        # Calculate dynamic font sizes for single highest spend card so the box height stays 100% consistent with left 3 cards
+        # Calculate dynamic font sizes based on description length and amount length
+        # Outer card box (130px height) and Title font size (0.9rem) REMAIN STRICTLY UNCHANGED across all 4 cards
         desc_len = len(max_desc)
-        if desc_len > 14:
-            amt_font_size = "1.35rem"
-            desc_font_size = "0.75rem"
-        elif desc_len > 8:
-            amt_font_size = "1.5rem"
-            desc_font_size = "0.8rem"
+        spend_str = f"NT$ {max_spend:,.0f}"
+        spend_len = len(spend_str)
+
+        if desc_len > 16 or spend_len > 10:
+            amt_font_size = "1.2rem"
+            desc_font_size = "0.72rem"
+        elif desc_len > 10 or spend_len > 8:
+            amt_font_size = "1.38rem"
+            desc_font_size = "0.78rem"
         else:
-            amt_font_size = "1.75rem"
-            desc_font_size = "0.85rem"
+            amt_font_size = "1.55rem"
+            desc_font_size = "0.82rem"
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.markdown(f'<div class="metric-card"><h4>總消費金額</h4><h2>NT$ {total_spend:,.0f}</h2></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         with col2:
-            st.markdown(f'<div class="metric-card"><h4>總消費筆數</h4><h2>{total_count} 筆</h2></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-title">總消費筆數</div><div class="metric-value">{total_count} 筆</div></div>', unsafe_allow_html=True)
         with col3:
-            st.markdown(f'<div class="metric-card"><h4>平均單筆消費</h4><h2>NT$ {avg_spend:,.0f}</h2></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-title">平均單筆消費</div><div class="metric-value">NT$ {avg_spend:,.0f}</div></div>', unsafe_allow_html=True)
         with col4:
             st.markdown(
                 f'<div class="metric-card">'
-                f'  <h4>單筆最高金額</h4>'
-                f'  <h2 style="font-size: {amt_font_size};">NT$ {max_spend:,.0f}</h2>'
-                f'  <div style="margin-top: 4px; font-size: {desc_font_size}; color: #38BDF8; font-weight: 500; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px;" title="{max_desc}">📍 {max_desc}</div>'
+                f'  <div class="metric-title">單筆最高金額</div>'
+                f'  <div class="metric-value" style="font-size: {amt_font_size};">NT$ {max_spend:,.0f}</div>'
+                f'  <div class="metric-sub" style="font-size: {desc_font_size};" title="{max_desc}">📍 {max_desc}</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
