@@ -115,22 +115,29 @@ st.markdown("""
 </style>
 
 <script>
-    const setupCardTextProtection = () => {
-        const textElements = document.querySelectorAll('div[data-testid="stColumn"]:nth-child(2) button p');
-        textElements.forEach(el => {
-            el.style.cursor = 'text';
-            el.style.userSelect = 'text';
-            el.style.webkitUserSelect = 'text';
+    (function() {
+        if (window.__cardTextProtectionInstalled) return;
+        window.__cardTextProtectionInstalled = true;
+
+        // Capture phase click listener on window
+        window.addEventListener('click', function(e) {
+            const cardBtn = document.querySelector('div[data-testid="stColumn"]:nth-child(2) button');
+            if (!cardBtn) return;
             
-            ['click', 'mousedown', 'mouseup'].forEach(evtType => {
-                el.addEventListener(evtType, (e) => {
+            // Check if click occurred inside or on the card button
+            if (cardBtn.contains(e.target) || e.target === cardBtn) {
+                const selectedText = window.getSelection() ? window.getSelection().toString().trim() : '';
+                const isTargetText = e.target.tagName === 'P' || e.target.closest('p');
+                
+                // If user clicked directly on text OR has text highlighted/selected, CANCEL button click!
+                if (isTargetText || selectedText.length > 0) {
+                    e.stopImmediatePropagation();
                     e.stopPropagation();
-                });
-            });
-        });
-    };
-    setupCardTextProtection();
-    setTimeout(setupCardTextProtection, 500);
+                    e.preventDefault();
+                }
+            }
+        }, true); // true = capture phase
+    })();
 </script>
 """, unsafe_allow_html=True)
 
