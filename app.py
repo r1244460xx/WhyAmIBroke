@@ -185,19 +185,34 @@ def main():
     # TAB 1: OVERVIEW DASHBOARD
     with tab1:
         c_filter1, c_filter2 = st.columns([2, 1])
+        
+        # Scanned month selection via dropdown menu with checkboxes
+        months = sorted(list(df["帳單月份"].dropna().unique()), reverse=True)
+        selected_months = []
+
         with c_filter1:
-            months = sorted(list(df["帳單月份"].dropna().unique()), reverse=True)
-            selected_months = st.multiselect("🗓️ 選擇帳單月份", options=months, default=months)
+            with st.popover(f"🗓️ 選擇帳單月份 (已掃描到 {len(months)} 個月份)", use_container_width=True):
+                st.caption("請勾選欲納入統計與報表計算的帳單月份：")
+                for m in months:
+                    m_count = len(df[df["帳單月份"] == m])
+                    checked = st.checkbox(
+                        f"📅 {m} ({m_count} 筆交易)",
+                        value=True,
+                        key=f"cb_month_{m}"
+                    )
+                    if checked:
+                        selected_months.append(m)
+
         with c_filter2:
             exclude_payments = st.checkbox("扣除 [網路銀行繳款/自動扣繳] (負數金額)", value=True)
         
-        filtered_df = df[df["帳單月份"].isin(selected_months)] if selected_months else df
+        filtered_df = df[df["帳單月份"].isin(selected_months)] if selected_months else pd.DataFrame(columns=df.columns)
 
-        if exclude_payments:
+        if exclude_payments and not filtered_df.empty:
             filtered_df = filtered_df[filtered_df["金額 (NT$)"] > 0]
 
         # KPI Metrics
-        total_spend = filtered_df["金額 (NT$)"].sum()
+        total_spend = filtered_df["金額 (NT$)"].sum() if not filtered_df.empty else 0
         total_count = len(filtered_df)
         avg_spend = total_spend / total_count if total_count > 0 else 0
 
@@ -210,8 +225,7 @@ def main():
             max_spend = 0
             max_desc = "無"
 
-        # Calculate dynamic font sizes based on description length and amount length
-        # Outer card box (130px height) and Title font size (0.9rem) REMAIN STRICTLY UNCHANGED across all 4 cards
+        # Dynamic font sizes for card 4
         desc_len = len(max_desc)
         spend_str = f"NT$ {max_spend:,.0f}"
         spend_len = len(spend_str)
@@ -246,7 +260,7 @@ def main():
         st.markdown("<br>", unsafe_allow_html=True)
 
         if filtered_df.empty:
-            st.warning("⚠️ 當前過濾條件下無任何交易資料。")
+            st.warning("⚠️ 當前未勾選任何帳單月份或過濾條件下無任何交易資料。")
         else:
             # Charts Section
             c_left, c_right = st.columns([1, 1])
@@ -265,9 +279,7 @@ def main():
 
             with c_right:
                 st.subheader("🗓️ 各月總花費對比")
-                monthly_summary = df.copy()
-                if exclude_payments:
-                    monthly_summary = monthly_summary[monthly_summary["金額 (NT$)"] > 0]
+                monthly_summary = filtered_df.copy()
                 monthly_df = monthly_summary.groupby("帳單月份")["金額 (NT$)"].sum().reset_index()
                 fig_monthly = px.bar(
                     monthly_df,
