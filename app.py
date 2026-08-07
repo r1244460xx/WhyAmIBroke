@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern dark design
+# Custom CSS for modern dark design with unified card heights
 st.markdown("""
 <style>
     .main {
@@ -25,31 +25,30 @@ st.markdown("""
         background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8));
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
-        padding: 20px;
+        padding: 14px 10px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         text-align: center;
         backdrop-filter: blur(10px);
+        min-height: 125px;
+        max-height: 125px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        box-sizing: border-box;
     }
     .metric-card h4 {
         margin: 0;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         color: #94A3B8;
         font-weight: 500;
     }
     .metric-card h2 {
-        margin: 10px 0 0 0;
-        font-size: 2rem;
+        margin: 4px 0 0 0;
+        font-size: 1.75rem;
         font-weight: 700;
         color: #38BDF8;
-    }
-    .metric-subtext {
-        margin-top: 8px;
-        font-size: 0.85rem;
-        color: #38BDF8;
-        font-weight: 500;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        line-height: 1.2;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -194,10 +193,22 @@ def main():
         if not filtered_df.empty:
             max_row = filtered_df.loc[filtered_df["金額 (NT$)"].idxmax()]
             max_spend = max_row["金額 (NT$)"]
-            max_desc = max_row["交易說明"]
+            max_desc = str(max_row["交易說明"])
         else:
             max_spend = 0
             max_desc = "無"
+
+        # Calculate dynamic font sizes for single highest spend card so the box height stays 100% consistent with left 3 cards
+        desc_len = len(max_desc)
+        if desc_len > 14:
+            amt_font_size = "1.35rem"
+            desc_font_size = "0.75rem"
+        elif desc_len > 8:
+            amt_font_size = "1.5rem"
+            desc_font_size = "0.8rem"
+        else:
+            amt_font_size = "1.75rem"
+            desc_font_size = "0.85rem"
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -207,7 +218,14 @@ def main():
         with col3:
             st.markdown(f'<div class="metric-card"><h4>平均單筆消費</h4><h2>NT$ {avg_spend:,.0f}</h2></div>', unsafe_allow_html=True)
         with col4:
-            st.markdown(f'<div class="metric-card"><h4>單筆最高金額</h4><h2>NT$ {max_spend:,.0f}</h2><div class="metric-subtext" title="{max_desc}">📍 {max_desc}</div></div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="metric-card">'
+                f'  <h4>單筆最高金額</h4>'
+                f'  <h2 style="font-size: {amt_font_size};">NT$ {max_spend:,.0f}</h2>'
+                f'  <div style="margin-top: 4px; font-size: {desc_font_size}; color: #38BDF8; font-weight: 500; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px;" title="{max_desc}">📍 {max_desc}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
         st.markdown("<br>", unsafe_allow_html=True)
 
