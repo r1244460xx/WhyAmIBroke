@@ -66,7 +66,7 @@ st.markdown("""
         text-overflow: ellipsis;
     }
 
-    /* Style col2 Streamlit button to look 100% IDENTICAL to .metric-card */
+    /* Style col2 Streamlit button to look 100% IDENTICAL to .metric-card with NO hover effects */
     div[data-testid="stColumn"]:nth-child(2) button {
         background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8)) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -83,11 +83,17 @@ st.markdown("""
         user-select: none !important;
         -webkit-user-select: none !important;
         cursor: pointer !important;
-        transition: border-color 0.2s ease, transform 0.2s ease !important;
+        transition: none !important;
     }
-    div[data-testid="stColumn"]:nth-child(2) button:hover {
-        border-color: #38BDF8 !important;
-        transform: translateY(-2px) !important;
+    div[data-testid="stColumn"]:nth-child(2) button:hover,
+    div[data-testid="stColumn"]:nth-child(2) button:focus,
+    div[data-testid="stColumn"]:nth-child(2) button:active,
+    div[data-testid="stColumn"]:nth-child(2) button:focus-visible {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8)) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+        transform: none !important;
+        outline: none !important;
     }
     div[data-testid="stColumn"]:nth-child(2) button p {
         margin: 0 !important;
@@ -321,7 +327,7 @@ def main():
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         
         with col2:
-            # Native Streamlit button styled 100% IDENTICALLY as .metric-card
+            # Native Streamlit button styled 100% IDENTICALLY as .metric-card (No hover effects)
             card_btn_label = f"總消費筆數\n\n{total_count} 筆"
             if st.button(card_btn_label, key="btn_trigger_count_modal", use_container_width=True):
                 show_transaction_count_modal(filtered_df)
