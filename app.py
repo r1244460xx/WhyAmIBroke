@@ -36,6 +36,10 @@ st.markdown("""
         align-items: center;
         box-sizing: border-box;
         overflow: hidden;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
     }
     .metric-title {
         font-size: 0.9rem !important;
@@ -62,36 +66,36 @@ st.markdown("""
         text-overflow: ellipsis;
     }
 
-    /* Style for clickable metric card wrapper */
-    .clickable-metric-wrapper {
-        position: relative;
-        height: 130px;
-        width: 100%;
+    /* Style col2 column so button is absolutely overlaid with 0 extra height */
+    div[data-testid="stColumn"]:nth-child(2) {
+        position: relative !important;
     }
-    .clickable-metric-wrapper .metric-card {
-        transition: border-color 0.2s ease, transform 0.2s ease;
+    div[data-testid="stColumn"]:nth-child(2) div[data-testid="stButton"] {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 130px !important;
+        z-index: 10 !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
-    .clickable-metric-wrapper:hover .metric-card {
-        border-color: #38BDF8;
-        transform: translateY(-2px);
-        cursor: pointer;
-    }
-    .clickable-metric-overlay {
-        position: relative;
-        margin-top: -130px;
-        height: 130px;
-        z-index: 20;
-    }
-    .clickable-metric-overlay button {
+    div[data-testid="stColumn"]:nth-child(2) div[data-testid="stButton"] button {
+        width: 100% !important;
+        height: 130px !important;
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
-        width: 100% !important;
-        height: 130px !important;
         opacity: 0 !important;
         cursor: pointer !important;
         margin: 0 !important;
         padding: 0 !important;
+    }
+
+    /* Hover effect for col2 card when hovering over the transparent button */
+    div[data-testid="stColumn"]:nth-child(2):hover .metric-card {
+        border-color: #38BDF8;
+        transform: translateY(-2px);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -309,20 +313,15 @@ def main():
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         
         with col2:
-            # Render identical metric-card HTML with transparent click overlay
             st.markdown(
-                f'<div class="clickable-metric-wrapper">'
-                f'  <div class="metric-card">'
-                f'    <div class="metric-title">總消費筆數</div>'
-                f'    <div class="metric-value">{total_count} 筆</div>'
-                f'  </div>'
+                f'<div class="metric-card">'
+                f'  <div class="metric-title">總消費筆數</div>'
+                f'  <div class="metric-value">{total_count} 筆</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
-            st.markdown('<div class="clickable-metric-overlay">', unsafe_allow_html=True)
-            if st.button(" ", key="btn_trigger_count_modal", use_container_width=True):
+            if st.button(" ", key="btn_trigger_count_modal"):
                 show_transaction_count_modal(filtered_df)
-            st.markdown('</div>', unsafe_allow_html=True)
 
         with col3:
             st.markdown(f'<div class="metric-card"><div class="metric-title">平均單筆消費</div><div class="metric-value">NT$ {avg_spend:,.0f}</div></div>', unsafe_allow_html=True)
