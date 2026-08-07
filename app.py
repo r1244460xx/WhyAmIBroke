@@ -36,10 +36,8 @@ st.markdown("""
         align-items: center;
         box-sizing: border-box;
         overflow: hidden;
-        user-select: none !important;
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        -ms-user-select: none !important;
+        user-select: text !important;
+        -webkit-user-select: text !important;
     }
     .metric-title {
         font-size: 0.9rem !important;
@@ -80,8 +78,8 @@ st.markdown("""
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
-        user-select: none !important;
-        -webkit-user-select: none !important;
+        user-select: text !important;
+        -webkit-user-select: text !important;
         cursor: pointer !important;
         transition: none !important;
     }
@@ -99,6 +97,8 @@ st.markdown("""
         margin: 0 !important;
         line-height: 1.2 !important;
         text-align: center !important;
+        user-select: text !important;
+        -webkit-user-select: text !important;
     }
     div[data-testid="stColumn"]:nth-child(2) button p:first-child {
         font-size: 0.9rem !important;
@@ -327,7 +327,7 @@ def main():
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         
         with col2:
-            # Native Streamlit button styled 100% IDENTICALLY as .metric-card (No hover effects)
+            # Native Streamlit button styled 100% IDENTICALLY as .metric-card (No hover effects, text selectable)
             card_btn_label = f"總消費筆數\n\n{total_count} 筆"
             if st.button(card_btn_label, key="btn_trigger_count_modal", use_container_width=True):
                 show_transaction_count_modal(filtered_df)
