@@ -1,0 +1,9 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.streamlit/
+config.json
+bills/*.pdf
+bills/*.PDF
