@@ -186,26 +186,45 @@ def main():
     with tab1:
         c_filter1, c_filter2 = st.columns([2, 1])
         
-        # Scanned month selection via dropdown menu with checkboxes
         months = sorted(list(df["帳單月份"].dropna().unique()), reverse=True)
-        selected_months = []
+        
+        # Initialize session_state for active months if not set
+        if "active_months" not in st.session_state:
+            st.session_state["active_months"] = months.copy()
+
+        # Filter active months to only include existing months
+        active_months = [m for m in st.session_state["active_months"] if m in months]
+        if not active_months and months:
+            active_months = months.copy()
+            st.session_state["active_months"] = active_months
 
         with c_filter1:
-            with st.popover(f"🗓️ 選擇帳單月份 (已掃描到 {len(months)} 個月份)", use_container_width=True):
-                st.caption("請勾選欲納入統計與報表計算的帳單月份：")
-                for m in months:
-                    m_count = len(df[df["帳單月份"] == m])
-                    checked = st.checkbox(
-                        f"📅 {m} ({m_count} 筆交易)",
-                        value=True,
-                        key=f"cb_month_{m}"
-                    )
-                    if checked:
-                        selected_months.append(m)
+            with st.popover(f"🗓️ 選擇帳單月份 (已選 {len(active_months)} / {len(months)} 個月)", use_container_width=True):
+                with st.form("month_filter_form", border=False):
+                    st.caption("勾選欲納入統計的月份，勾選完畢後點擊下方按鈕一併套用：")
+                    
+                    form_selected = []
+                    for m in months:
+                        m_count = len(df[df["帳單月份"] == m])
+                        is_checked = st.checkbox(
+                            f"📅 {m} ({m_count} 筆交易)",
+                            value=(m in active_months),
+                            key=f"form_cb_{m}"
+                        )
+                        if is_checked:
+                            form_selected.append(m)
+
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    apply_btn = st.form_submit_button("✅ 一鍵套用所選月份", use_container_width=True)
+                    
+                    if apply_btn:
+                        st.session_state["active_months"] = form_selected
+                        st.rerun()
 
         with c_filter2:
             exclude_payments = st.checkbox("扣除 [網路銀行繳款/自動扣繳] (負數金額)", value=True)
         
+        selected_months = st.session_state.get("active_months", months)
         filtered_df = df[df["帳單月份"].isin(selected_months)] if selected_months else pd.DataFrame(columns=df.columns)
 
         if exclude_payments and not filtered_df.empty:
