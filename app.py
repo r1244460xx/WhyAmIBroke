@@ -152,9 +152,9 @@ def show_transaction_count_modal(filtered_df):
     total_cnt = len(filtered_df)
     st.write(f"目前共 **{total_cnt}** 筆符合條件的交易（預設順序排列，點擊視窗外區域即可關閉）：")
     if not filtered_df.empty:
-        count_display = filtered_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "卡號末四碼"]].copy()
+        count_display = filtered_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]].copy()
         count_display["交易日期"] = count_display["交易日期"].dt.strftime('%Y-%m-%d')
-        st.dataframe(count_display, use_container_width=True, height=450)
+        st.dataframe(count_display, use_container_width=True, hide_index=True, height=450)
     else:
         st.info("無任何交易紀錄")
 
@@ -213,7 +213,7 @@ def main():
         st.info("ℹ️ 尚無可顯示的交易資料。請確認 `./bills` 目錄內是否有帳單 PDF 及密碼是否正確。")
         if not scan_df.empty:
             st.subheader("📋 帳單掃描狀態報告")
-            st.dataframe(scan_df, use_container_width=True)
+            st.dataframe(scan_df, use_container_width=True, hide_index=True)
         return
 
     # Filter out amounts <= min_amount globally if min_amount > 0
@@ -361,9 +361,9 @@ def main():
             # Top Transactions Table
             st.subheader("🔥 最高花費前 10 筆明細")
             top10_df = filtered_df.sort_values(by="金額 (NT$)", ascending=False).head(10)
-            top10_display = top10_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "卡號末四碼"]].copy()
+            top10_display = top10_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]].copy()
             top10_display["交易日期"] = top10_display["交易日期"].dt.strftime('%Y-%m-%d')
-            st.dataframe(top10_display, use_container_width=True)
+            st.dataframe(top10_display, use_container_width=True, hide_index=True)
 
     # TAB 2: TRANSACTION DETAILS & SEARCH
     with tab2:
@@ -382,12 +382,13 @@ def main():
         if kw.strip():
             detail_df = detail_df[detail_df["交易說明"].str.contains(kw.strip(), case=False, na=False)]
 
-        detail_display = detail_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "卡號末四碼", "來源檔名"]].copy()
+        detail_display = detail_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"]].copy()
         detail_display["交易日期"] = detail_display["交易日期"].dt.strftime('%Y-%m-%d')
 
         st.dataframe(
             detail_display,
-            use_container_width=True
+            use_container_width=True,
+            hide_index=True
         )
 
         csv_data = detail_df.to_csv(index=False, encoding="utf-8-sig")
@@ -401,7 +402,7 @@ def main():
     # TAB 3: FILE MANAGEMENT
     with tab3:
         st.subheader("📁 本地 PDF 帳單掃描狀態")
-        st.dataframe(scan_df, use_container_width=True)
+        st.dataframe(scan_df, use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":
