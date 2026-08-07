@@ -62,32 +62,36 @@ st.markdown("""
         text-overflow: ellipsis;
     }
 
-    /* Style button in col2 to look 100% IDENTICAL to .metric-card */
-    .count-card-btn {
+    /* Style for clickable metric card wrapper */
+    .clickable-metric-wrapper {
         position: relative;
         height: 130px;
+        width: 100%;
     }
-    .count-card-btn button {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8)) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 12px !important;
-        height: 130px !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
-        backdrop-filter: blur(10px) !important;
-        padding: 16px 12px !important;
-        width: 100% !important;
-        transition: transform 0.2s ease, border-color 0.2s ease;
+    .clickable-metric-wrapper .metric-card {
+        transition: border-color 0.2s ease, transform 0.2s ease;
     }
-    .count-card-btn button:hover {
-        border-color: #38BDF8 !important;
+    .clickable-metric-wrapper:hover .metric-card {
+        border-color: #38BDF8;
         transform: translateY(-2px);
         cursor: pointer;
     }
-    .count-card-btn button div {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+    .clickable-metric-overlay {
+        position: relative;
+        margin-top: -130px;
+        height: 130px;
+        z-index: 20;
+    }
+    .clickable-metric-overlay button {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        width: 100% !important;
+        height: 130px !important;
+        opacity: 0 !important;
+        cursor: pointer !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -305,10 +309,18 @@ def main():
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         
         with col2:
-            st.markdown('<div class="count-card-btn">', unsafe_allow_html=True)
-            # Render card button with html formatting matching col1, col3, col4
-            btn_html = f'<div class="metric-title">總消費筆數</div><div class="metric-value">{total_count} 筆</div>'
-            if st.button(btn_html, key="btn_trigger_count_modal", use_container_width=True):
+            # Render identical metric-card HTML with transparent click overlay
+            st.markdown(
+                f'<div class="clickable-metric-wrapper">'
+                f'  <div class="metric-card">'
+                f'    <div class="metric-title">總消費筆數</div>'
+                f'    <div class="metric-value">{total_count} 筆</div>'
+                f'  </div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+            st.markdown('<div class="clickable-metric-overlay">', unsafe_allow_html=True)
+            if st.button(" ", key="btn_trigger_count_modal", use_container_width=True):
                 show_transaction_count_modal(filtered_df)
             st.markdown('</div>', unsafe_allow_html=True)
 
