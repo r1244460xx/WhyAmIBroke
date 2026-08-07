@@ -111,21 +111,32 @@ def main():
         pdf_dir = st.text_input("帳單 PDF 目錄", value=config_mgr.get("bill_pdf_dir", "./bills"))
         pdf_password = st.text_input("PDF 解密密碼", value=config_mgr.get("pdf_password", ""), type="password")
 
-        if st.button("💾 儲存設定", use_container_width=True):
-            config_mgr.set("bill_pdf_dir", pdf_dir)
-            config_mgr.set("pdf_password", pdf_password)
-            st.success("設定已儲存！")
-            st.rerun()
-
         st.divider()
         st.subheader("🔍 交易過濾設定")
+        
+        # Load min_amount_filter from config. Default 0 if missing or negative
+        saved_min_amt = config_mgr.get("min_amount_filter", 0)
+        if not isinstance(saved_min_amt, (int, float)) or saved_min_amt < 0:
+            saved_min_amt = 0
+
         min_amount = st.number_input(
             "過濾小於等於此金額的項目 (NT$)",
             min_value=0,
-            value=0,
+            value=int(saved_min_amt),
             step=100,
             help="設定例如 500，則所有金額 <= 500 的交易將不會納入統計與報表"
         )
+
+        # Auto-save min_amount if changed
+        if min_amount != saved_min_amt:
+            config_mgr.set("min_amount_filter", max(0, int(min_amount)))
+
+        if st.button("💾 儲存所有設定", use_container_width=True):
+            config_mgr.set("bill_pdf_dir", pdf_dir)
+            config_mgr.set("pdf_password", pdf_password)
+            config_mgr.set("min_amount_filter", max(0, int(min_amount)))
+            st.success("設定已儲存至 config.json！")
+            st.rerun()
 
     # Main logic
     if not os.path.exists(pdf_dir):
