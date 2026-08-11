@@ -488,7 +488,9 @@ def main():
         if sel_m != "全部":
             detail_df = detail_df[detail_df["帳單月份"] == sel_m]
         if kw.strip():
-            detail_df = detail_df[detail_df["交易說明"].str.contains(kw.strip(), case=False, na=False)]
+            import unicodedata
+            norm_kw = unicodedata.normalize('NFKC', kw.strip())
+            detail_df = detail_df[detail_df["交易說明"].str.contains(norm_kw, case=False, na=False)]
 
         detail_display = detail_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"]].copy()
         detail_display["交易日期"] = detail_display["交易日期"].dt.strftime('%Y-%m-%d')

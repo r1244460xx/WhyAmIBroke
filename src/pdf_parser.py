@@ -143,6 +143,10 @@ class CreditCardPDFParser:
         return transactions
 
     def _clean_description(self, desc):
+        if not desc:
+            return ""
+        import unicodedata
+        desc = unicodedata.normalize('NFKC', desc).strip()
         desc = re.sub(r'(?:TAIPEI|Taipei|TAOYUA|KAOHSI|NEW TAI)\s*(?:TW)?$', '', desc).strip()
         desc = re.sub(r'TW$', '', desc).strip()
         return desc
