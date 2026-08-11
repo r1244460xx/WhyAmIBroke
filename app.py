@@ -231,7 +231,6 @@ def load_and_parse_all_pdfs(pdf_dir, password):
     df = pd.DataFrame(all_records)
     if not df.empty:
         df["交易日期"] = pd.to_datetime(df["交易日期"], errors="coerce")
-        df["消費月份"] = df["交易日期"].dt.strftime('%Y-%m').fillna(df["帳單月份"])
         df = df.sort_values(by="交易日期", ascending=False)
     
     return df, pd.DataFrame(scan_results)
@@ -243,7 +242,7 @@ def show_transaction_count_modal(filtered_df):
     total_cnt = len(filtered_df)
     st.write(f"目前共 **{total_cnt}** 筆符合條件的交易（預設順序排列，點擊視窗外區域即可關閉）：")
     if not filtered_df.empty:
-        count_display = filtered_df[["消費月份", "交易日期", "交易說明", "金額 (NT$)"]].copy()
+        count_display = filtered_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]].copy()
         count_display["交易日期"] = count_display["交易日期"].dt.strftime('%Y-%m-%d')
         st.dataframe(count_display, use_container_width=True, hide_index=True, height=450)
     else:
@@ -330,8 +329,8 @@ def main():
     with tab1:
         c_filter1, c_filter2 = st.columns([2, 1])
         
-        # Use 消費月份 (actual transaction date month) for intuitive monthly grouping
-        months = sorted(list(df["消費月份"].dropna().unique()), reverse=True)
+        # Filter strictly by 帳單月份 (Statement Month PDF file)
+        months = sorted(list(df["帳單月份"].dropna().unique()), reverse=True)
         
         # Initialize session_state for active months if not set
         if "active_months" not in st.session_state:
@@ -344,15 +343,15 @@ def main():
             st.session_state["active_months"] = active_months
 
         with c_filter1:
-            with st.popover(f"🗓️ 選擇消費月份 (已選 {len(active_months)} / {len(months)} 個月)", use_container_width=True):
+            with st.popover(f"🗓️ 選擇帳單月份 (已選 {len(active_months)} / {len(months)} 個月)", use_container_width=True):
                 with st.form("month_filter_form", border=False):
-                    st.caption("勾選欲納入統計的實際消費月份，勾選完畢後點擊下方按鈕套用：")
+                    st.caption("勾選欲納入統計的帳單月份，選取月份 PDF 內的所有交易項目均會完整納入統計與列表：")
                     
                     form_selected = []
                     for m in months:
-                        m_count = len(df[df["消費月份"] == m])
+                        m_count = len(df[df["帳單月份"] == m])
                         is_checked = st.checkbox(
-                            f"📅 {m} ({m_count} 筆交易)",
+                            f"📅 {m} 帳單 ({m_count} 筆交易)",
                             value=(m in active_months),
                             key=f"form_cb_{m}"
                         )
@@ -370,7 +369,7 @@ def main():
             exclude_payments = st.checkbox("扣除 [網路銀行繳款/自動扣繳] (負數金額)", value=True)
         
         selected_months = st.session_state.get("active_months", months)
-        filtered_df = df[df["消費月份"].isin(selected_months)] if selected_months else pd.DataFrame(columns=df.columns)
+        filtered_df = df[df["帳單月份"].isin(selected_months)] if selected_months else pd.DataFrame(columns=df.columns)
 
         if exclude_payments and not filtered_df.empty:
             filtered_df = filtered_df[filtered_df["金額 (NT$)"] > 0]
@@ -438,7 +437,7 @@ def main():
         st.markdown("<br>", unsafe_allow_html=True)
 
         if filtered_df.empty:
-            st.warning("⚠️ 當前未勾選任何消費月份或過濾條件下無任何交易資料。")
+            st.warning("⚠️ 當前未勾選任何帳單月份或過濾條件下無任何交易資料。")
         else:
             # Charts Section
             c_left, c_right = st.columns([1, 1])
@@ -458,21 +457,21 @@ def main():
             with c_right:
                 st.subheader("🗓️ 各月總花費對比")
                 monthly_summary = filtered_df.copy()
-                monthly_df = monthly_summary.groupby("消費月份")["金額 (NT$)"].sum().reset_index()
+                monthly_df = monthly_summary.groupby("帳單月份")["金額 (NT$)"].sum().reset_index()
                 fig_monthly = px.bar(
                     monthly_df,
-                    x="消費月份",
+                    x="帳單月份",
                     y="金額 (NT$)",
                     text_auto=',.0f',
                     color_discrete_sequence=["#818CF8"]
                 )
-                fig_monthly.update_layout(margin=dict(t=20, b=20, l=20, r=20), xaxis_title="消費月份", yaxis_title="總金額 (NT$)")
+                fig_monthly.update_layout(margin=dict(t=20, b=20, l=20, r=20), xaxis_title="帳單月份", yaxis_title="總金額 (NT$)")
                 st.plotly_chart(fig_monthly, use_container_width=True)
 
             # Top Transactions Table
             st.subheader("🔥 最高花費前 10 筆明細")
             top10_df = filtered_df.sort_values(by="金額 (NT$)", ascending=False).head(10)
-            top10_display = top10_df[["消費月份", "交易日期", "交易說明", "金額 (NT$)"]].copy()
+            top10_display = top10_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]].copy()
             top10_display["交易日期"] = top10_display["交易日期"].dt.strftime('%Y-%m-%d')
             st.dataframe(top10_display, use_container_width=True, hide_index=True)
 
@@ -482,19 +481,19 @@ def main():
         
         f_col1, f_col2 = st.columns([1, 2])
         with f_col1:
-            m_options = ["全部"] + sorted(list(df["消費月份"].unique()), reverse=True)
-            sel_m = st.selectbox("篩選消費月份", m_options)
+            m_options = ["全部"] + sorted(list(df["帳單月份"].unique()), reverse=True)
+            sel_m = st.selectbox("篩選帳單月份", m_options)
         with f_col2:
             kw = st.text_input("搜尋交易說明關鍵字 (例如: 全聯 / 高鐵 / 露天)", "")
 
         detail_df = df.copy()
         if sel_m != "全部":
-            detail_df = detail_df[detail_df["消費月份"] == sel_m]
+            detail_df = detail_df[detail_df["帳單月份"] == sel_m]
         if kw.strip():
             norm_kw = unicodedata.normalize('NFKC', kw.strip())
             detail_df = detail_df[detail_df["交易說明"].str.contains(norm_kw, case=False, na=False)]
 
-        detail_display = detail_df[["消費月份", "交易日期", "交易說明", "金額 (NT$)", "帳單月份", "來源檔名"]].copy()
+        detail_display = detail_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"]].copy()
         detail_display["交易日期"] = detail_display["交易日期"].dt.strftime('%Y-%m-%d')
 
         st.dataframe(
@@ -520,7 +519,7 @@ def main():
             st.divider()
             st.subheader(f"🔄 已自動對銷的刷退明細 (共 {len(offset_df)} 筆項目)")
             st.caption("系統已將下列刷退/退款項目與對應之原消費對銷，這些項目均未計入上方任何統計與報表：")
-            offset_display = offset_df[["消費月份", "交易日期", "交易說明", "金額 (NT$)", "帳單月份", "來源檔名"]].copy()
+            offset_display = offset_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"]].copy()
             offset_display["交易日期"] = offset_display["交易日期"].dt.strftime('%Y-%m-%d')
             st.dataframe(offset_display, use_container_width=True, hide_index=True)
 
