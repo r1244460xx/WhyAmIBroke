@@ -271,9 +271,9 @@ def main():
         
         # Default refund offset toggle (Enabled by default)
         auto_refund_offset = st.checkbox(
-            "🔄 預設對銷刷退項目 (與原消費互扣不計入統計)",
+            "🔄 自動抵銷刷退與退款",
             value=True,
-            help="自動比對刷退/退款項目與對應的原消費金額，對銷後兩者均不會影響任何統計或出現在列表中"
+            help="自動比對刷退/退款與對應的原消費，抵消後兩者均不計入統計與明細"
         )
 
         # Load min_amount_filter from config. Default 0 if missing or negative
