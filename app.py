@@ -1,5 +1,6 @@
 import os
 import glob
+import re
 import pandas as pd
 import streamlit as st
 import plotly.express as px
@@ -64,76 +65,56 @@ st.markdown("""
         text-overflow: ellipsis;
     }
 
-    /* Style col2 Streamlit button to look 100% IDENTICAL to .metric-card with NO hover effects */
-    div[data-testid="stColumn"]:nth-child(2) button {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8)) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 12px !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
-        backdrop-filter: blur(10px) !important;
-        height: 130px !important;
-        padding: 16px 12px !important;
-        width: 100% !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        align-items: center !important;
-        user-select: text !important;
-        -webkit-user-select: text !important;
+    /* Style for clickable div card class */
+    .clickable-card {
         cursor: pointer !important;
-        transition: none !important;
     }
-    div[data-testid="stColumn"]:nth-child(2) button:hover,
-    div[data-testid="stColumn"]:nth-child(2) button:focus,
-    div[data-testid="stColumn"]:nth-child(2) button:active,
-    div[data-testid="stColumn"]:nth-child(2) button:focus-visible {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8)) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
-        transform: none !important;
-        outline: none !important;
-    }
-    div[data-testid="stColumn"]:nth-child(2) button p {
+
+    /* Hide the Streamlit trigger button completely from UI */
+    .hidden-button-wrapper {
+        display: none !important;
+        height: 0 !important;
+        width: 0 !important;
+        overflow: hidden !important;
         margin: 0 !important;
-        line-height: 1.2 !important;
-        text-align: center !important;
-        user-select: text !important;
-        -webkit-user-select: text !important;
-        cursor: text !important;
-    }
-    div[data-testid="stColumn"]:nth-child(2) button p:first-child {
-        font-size: 0.9rem !important;
-        color: #94A3B8 !important;
-        font-weight: 500 !important;
-        margin-bottom: 6px !important;
-    }
-    div[data-testid="stColumn"]:nth-child(2) button p:last-child {
-        font-size: 1.75rem !important;
-        font-weight: 700 !important;
-        color: #38BDF8 !important;
+        padding: 0 !important;
     }
 </style>
 
 <script>
     (function() {
-        if (window.__cardTextProtectionInstalled) return;
-        window.__cardTextProtectionInstalled = true;
+        if (window.__cardSelectionClickGuardInstalled) return;
+        window.__cardSelectionClickGuardInstalled = true;
 
-        // Capture phase click listener on window
-        window.addEventListener('click', function(e) {
-            const btn = e.target.closest('button');
-            if (btn && btn.textContent.includes('總消費筆數')) {
-                const selectedText = window.getSelection() ? window.getSelection().toString().trim() : '';
-                
-                // If the user clicked on any child element (like the text span/p/div) 
-                // OR if there is active highlighted text selection, we cancel the button click!
-                if (e.target !== btn || selectedText.length > 0) {
-                    e.stopImmediatePropagation();
-                    e.stopPropagation();
-                    e.preventDefault();
+        // Use mouseup to accurately catch mouse drag release events!
+        document.addEventListener('mouseup', function(e) {
+            const card = e.target.closest('#count_card_div');
+            if (!card) return;
+            
+            // Check if user is currently selecting/highlighting any text
+            const selectedText = window.getSelection() ? window.getSelection().toString().trim() : '';
+            if (selectedText.length > 0) {
+                return; // User is dragging/selecting text, do NOT trigger modal!
+            }
+            
+            // Check if user clicked directly on the text elements
+            const isTextClick = e.target.classList.contains('metric-title') || 
+                                e.target.classList.contains('metric-value') || 
+                                e.target.closest('.metric-title') || 
+                                e.target.closest('.metric-value');
+            if (isTextClick) {
+                return; // User clicked on text, do NOT trigger modal!
+            }
+            
+            // User clicked on blank background/padding of the card -> trigger hidden Streamlit button
+            const hiddenWrapper = document.querySelector('.hidden-button-wrapper');
+            if (hiddenWrapper) {
+                const btn = hiddenWrapper.querySelector('button');
+                if (btn) {
+                    btn.click();
                 }
             }
-        }, true); // true = capture phase
+        });
     })();
 </script>
 """, unsafe_allow_html=True)
@@ -142,6 +123,68 @@ st.markdown("""
 @st.cache_resource
 def get_config_manager():
     return ConfigManager("config.json")
+
+
+def clean_merchant_name(desc):
+    """Strip common refund/cancellation prefixes/suffixes for matching."""
+    if not isinstance(desc, str):
+        return ""
+    d = desc.strip()
+    d = re.sub(r'^(退貨|刷退|退款|沖銷|退費|CANCEL|REFUND|REVERSAL)\s*[-－_]?\s*', '', d, flags=re.IGNORECASE)
+    d = re.sub(r'\s*[-－_]?\s*(退貨|刷退|退款|沖銷|退費|CANCEL|REFUND|REVERSAL)$', '', d, flags=re.IGNORECASE)
+    d = re.sub(r'G\d{4}$', '', d)
+    return d.strip()
+
+
+def process_refund_offsets(df):
+    """
+    Match refund transactions with corresponding original purchase transactions
+    and remove both from the dataset before any statistics are computed.
+    """
+    if df.empty:
+        return df, pd.DataFrame()
+    
+    payment_keywords = ["繳款", "自動扣繳", "銀行轉帳", "跨行轉帳", "自動轉帳扣繳", "轉帳"]
+    
+    records = df.to_dict('records')
+    n = len(records)
+    matched_indices = set()
+    
+    for i in range(n):
+        if i in matched_indices:
+            continue
+        rec_i = records[i]
+        desc_i = str(rec_i.get("交易說明", ""))
+        amt_i = float(rec_i.get("金額 (NT$)", 0))
+        
+        is_payment_i = any(kw in desc_i for kw in payment_keywords)
+        is_refund_cand = not is_payment_i and (
+            amt_i < 0 or any(kw in desc_i for kw in ["退貨", "刷退", "退款", "沖銷", "退費", "CANCEL", "REFUND", "REVERSAL"])
+        )
+        
+        if is_refund_cand:
+            base_m_i = clean_merchant_name(desc_i)
+            target_amt = abs(amt_i)
+            
+            for j in range(n):
+                if j == i or j in matched_indices:
+                    continue
+                rec_j = records[j]
+                desc_j = str(rec_j.get("交易說明", ""))
+                amt_j = float(rec_j.get("金額 (NT$)", 0))
+                
+                is_payment_j = any(kw in desc_j for kw in payment_keywords)
+                if not is_payment_j and amt_j > 0 and abs(amt_j - target_amt) < 0.01:
+                    base_m_j = clean_merchant_name(desc_j)
+                    if base_m_i == base_m_j or (base_m_i and base_m_j and (base_m_i in base_m_j or base_m_j in base_m_i)):
+                        matched_indices.add(i)
+                        matched_indices.add(j)
+                        break
+                        
+    remaining_records = [records[k] for k in range(n) if k not in matched_indices]
+    matched_records = [records[k] for k in range(n) if k in matched_indices]
+    
+    return pd.DataFrame(remaining_records), pd.DataFrame(matched_records)
 
 
 def load_and_parse_all_pdfs(pdf_dir, password):
@@ -226,6 +269,13 @@ def main():
         st.divider()
         st.subheader("🔍 交易過濾設定")
         
+        # Default refund offset toggle (Enabled by default)
+        auto_refund_offset = st.checkbox(
+            "🔄 預設對銷刷退項目 (與原消費互扣不計入統計)",
+            value=True,
+            help="自動比對刷退/退款項目與對應的原消費金額，對銷後兩者均不會影響任何統計或出現在列表中"
+        )
+
         # Load min_amount_filter from config. Default 0 if missing or negative
         saved_min_amt = config_mgr.get("min_amount_filter", 0)
         if not isinstance(saved_min_amt, (int, float)) or saved_min_amt < 0:
@@ -261,6 +311,11 @@ def main():
             st.subheader("📋 帳單掃描狀態報告")
             st.dataframe(scan_df, use_container_width=True, hide_index=True)
         return
+
+    # Process refund offset BEFORE any statistics or threshold filtering
+    offset_df = pd.DataFrame()
+    if auto_refund_offset and not df.empty:
+        df, offset_df = process_refund_offsets(df)
 
     # Filter out amounts <= min_amount globally if min_amount > 0
     if min_amount > 0:
@@ -351,10 +406,19 @@ def main():
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         
         with col2:
-            # Native Streamlit button styled 100% IDENTICALLY as .metric-card
-            card_btn_label = f"總消費筆數\n\n{total_count} 筆"
-            if st.button(card_btn_label, key="btn_trigger_count_modal", use_container_width=True):
+            # 1. Render identical HTML div container (100% standard text selection browser behavior)
+            st.markdown(
+                f'<div class="metric-card clickable-card" id="count_card_div">'
+                f'  <div class="metric-title">總消費筆數</div>'
+                f'  <div class="metric-value">{total_count} 筆</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+            # 2. Render invisible Streamlit trigger button
+            st.markdown('<div class="hidden-button-wrapper">', unsafe_allow_html=True)
+            if st.button("hidden_trigger", key="btn_trigger_count_modal", use_container_width=True):
                 show_transaction_count_modal(filtered_df)
+            st.markdown('</div>', unsafe_allow_html=True)
 
         with col3:
             st.markdown(f'<div class="metric-card"><div class="metric-title">平均單筆消費</div><div class="metric-value">NT$ {avg_spend:,.0f}</div></div>', unsafe_allow_html=True)
@@ -443,10 +507,18 @@ def main():
             mime="text/csv"
         )
 
-    # TAB 3: FILE MANAGEMENT
+    # TAB 3: FILE MANAGEMENT & REFUND AUDIT
     with tab3:
         st.subheader("📁 本地 PDF 帳單掃描狀態")
         st.dataframe(scan_df, use_container_width=True, hide_index=True)
+
+        if auto_refund_offset and not offset_df.empty:
+            st.divider()
+            st.subheader(f"🔄 已自動對銷的刷退明細 (共 {len(offset_df)} 筆項目)")
+            st.caption("系統已將下列刷退/退款項目與對應之原消費對銷，這些項目均未計入上方任何統計與報表：")
+            offset_display = offset_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"]].copy()
+            offset_display["交易日期"] = offset_display["交易日期"].dt.strftime('%Y-%m-%d')
+            st.dataframe(offset_display, use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":
