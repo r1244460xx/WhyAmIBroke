@@ -478,6 +478,17 @@ def main():
                     color_discrete_sequence=["#818CF8"]
                 )
                 
+                # Enhanced high-contrast designer font for bar values
+                fig_monthly.update_traces(
+                    textposition="outside",
+                    textfont=dict(
+                        family="'JetBrains Mono', 'DIN Alternate', 'SF Pro Display', 'Inter', -apple-system, sans-serif",
+                        size=16,
+                        color="#FFFFFF"
+                    ),
+                    cliponaxis=False
+                )
+
                 # Enforce category type to ensure ONLY month labels appear, and order left-to-right
                 xaxis_config = dict(
                     type="category",
@@ -488,10 +499,14 @@ def main():
                 if num_m < 6:
                     xaxis_config["range"] = [-0.5, max(5, num_m) - 0.5]
 
+                max_val = monthly_df["金額 (NT$)"].max() if not monthly_df.empty else 0
                 fig_monthly.update_layout(
-                    margin=dict(t=20, b=20, l=20, r=20),
+                    margin=dict(t=25, b=20, l=20, r=20),
                     xaxis=xaxis_config,
-                    yaxis_title="總金額 (NT$)"
+                    yaxis=dict(
+                        title="總金額 (NT$)",
+                        range=[0, max_val * 1.18] if max_val > 0 else None
+                    )
                 )
                 st.plotly_chart(fig_monthly, use_container_width=True)
 
