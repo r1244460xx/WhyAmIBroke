@@ -467,6 +467,9 @@ def main():
                 st.subheader("🗓️ 各月總花費對比")
                 monthly_summary = filtered_df.copy()
                 monthly_df = monthly_summary.groupby("帳單月份")["金額 (NT$)"].sum().reset_index()
+                monthly_df = monthly_df.sort_values(by="帳單月份", ascending=True)
+                num_m = len(monthly_df)
+
                 fig_monthly = px.bar(
                     monthly_df,
                     x="帳單月份",
@@ -474,7 +477,22 @@ def main():
                     text_auto=',.0f',
                     color_discrete_sequence=["#818CF8"]
                 )
-                fig_monthly.update_layout(margin=dict(t=20, b=20, l=20, r=20), xaxis_title="帳單月份", yaxis_title="總金額 (NT$)")
+                
+                # Enforce category type to ensure ONLY month labels appear, and order left-to-right
+                xaxis_config = dict(
+                    type="category",
+                    categoryorder="category ascending",
+                    title="帳單月份"
+                )
+                # When 5 months or fewer, set category range so bars start from left instead of being centered
+                if num_m < 6:
+                    xaxis_config["range"] = [-0.5, max(5, num_m) - 0.5]
+
+                fig_monthly.update_layout(
+                    margin=dict(t=20, b=20, l=20, r=20),
+                    xaxis=xaxis_config,
+                    yaxis_title="總金額 (NT$)"
+                )
                 st.plotly_chart(fig_monthly, use_container_width=True)
 
             # Top Transactions Table
