@@ -90,6 +90,78 @@ st.markdown("""
         background: transparent !important;
         box-shadow: none !important;
     }
+
+    /* Eliminate gap between directory input and folder browse button */
+    div[data-testid="stHorizontalBlock"]:has(.st-key-btn_browse_folder) {
+        gap: 6px !important;
+        align-items: center !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.st-key-btn_browse_folder) > div[data-testid="column"]:first-child {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.st-key-btn_browse_folder) > div[data-testid="column"]:last-child {
+        flex: 0 0 42px !important;
+        width: 42px !important;
+        min-width: 42px !important;
+        max-width: 42px !important;
+    }
+
+    /* Folder browse button perfect vertical and horizontal centering (Borderless) */
+    .st-key-btn_browse_folder {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .st-key-btn_browse_folder button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 42px !important;
+        min-width: 42px !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        max-height: 40px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        font-size: 1.25rem !important;
+        line-height: 1 !important;
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        cursor: pointer !important;
+        border-radius: 8px !important;
+    }
+    .st-key-btn_browse_folder button:hover {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+    }
+    .st-key-btn_browse_folder button:focus,
+    .st-key-btn_browse_folder button:active {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        background: rgba(255, 255, 255, 0.12) !important;
+    }
+    .st-key-btn_browse_folder button p,
+    .st-key-btn_browse_folder button div,
+    .st-key-btn_browse_folder button span {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1 !important;
+        font-size: 1.25rem !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -298,38 +370,49 @@ def main():
     with st.sidebar:
         st.header("⚙️ 設定與過濾")
         
+        saved_dir = config_mgr.get("bill_pdf_dir", "./bills")
+        saved_pw = config_mgr.get("pdf_password", "")
+        
+        if "pending_pdf_dir" not in st.session_state:
+            st.session_state["pending_pdf_dir"] = saved_dir
+
         st.caption("📂 帳單 PDF 目錄")
-        c_dir_txt, c_dir_btn = st.columns([4, 1])
+        c_dir_txt, c_dir_btn = st.columns([5, 1], gap="small")
         with c_dir_txt:
-            current_dir = st.session_state.get("selected_pdf_dir", config_mgr.get("bill_pdf_dir", "./bills"))
-            pdf_dir = st.text_input("帳單 PDF 目錄", value=current_dir, label_visibility="collapsed")
-            if pdf_dir != current_dir:
-                st.session_state["selected_pdf_dir"] = pdf_dir
+            current_dir_val = st.session_state.get("pending_pdf_dir", saved_dir)
+            pdf_dir_input = st.text_input("帳單 PDF 目錄", value=current_dir_val, label_visibility="collapsed")
+            if pdf_dir_input != current_dir_val:
+                st.session_state["pending_pdf_dir"] = pdf_dir_input
         with c_dir_btn:
-            if st.button("📁", use_container_width=True, help="點擊開啟電腦檔案總管/Finder 選擇資料夾 (預設位於 ./bills)"):
-                chosen_dir = select_folder_dialog(pdf_dir)
+            if st.button("📁", key="btn_browse_folder", use_container_width=True, help="點擊開啟電腦檔案總管/Finder 選擇資料夾 (預設位於 ./bills)"):
+                chosen_dir = select_folder_dialog(st.session_state["pending_pdf_dir"])
                 if chosen_dir and os.path.exists(chosen_dir):
-                    st.session_state["selected_pdf_dir"] = chosen_dir
-                    config_mgr.set("bill_pdf_dir", chosen_dir)
-                    st.cache_data.clear()
+                    st.session_state["pending_pdf_dir"] = chosen_dir
                     st.rerun()
 
-        pdf_password = st.text_input("PDF 解密密碼", value=config_mgr.get("pdf_password", ""), type="password")
+        pdf_password_input = st.text_input("PDF 解密密碼", value=saved_pw, type="password")
 
         c_save, c_refresh = st.columns([1, 1])
         with c_save:
             if st.button("💾 儲存設定", use_container_width=True):
-                config_mgr.set("bill_pdf_dir", pdf_dir)
-                config_mgr.set("pdf_password", pdf_password)
+                config_mgr.set("bill_pdf_dir", st.session_state["pending_pdf_dir"])
+                config_mgr.set("pdf_password", pdf_password_input)
                 st.cache_data.clear()
-                st.success("設定已儲存！")
+                st.session_state["save_status_chip"] = "✅ 設定已儲存並成功重新掃描！"
+                st.rerun()
+        with c_refresh:
+            if st.button("🔄 重新掃描", use_container_width=True, help="清除快取並重新掃描所有 PDF 帳單"):
+                config_mgr.set("bill_pdf_dir", st.session_state["pending_pdf_dir"])
+                config_mgr.set("pdf_password", pdf_password_input)
+                st.cache_data.clear()
+                st.session_state["save_status_chip"] = "✅ 快取已清除並成功重新掃描！"
                 st.rerun()
 
-        with c_refresh:
-            if st.button("🔄 重新掃描", use_container_width=True, help="清除記憶體快取並重新掃描所有 PDF 帳單"):
-                st.cache_data.clear()
-                st.success("快取已清除，正在重新掃描...")
-                st.rerun()
+        if "save_status_chip" in st.session_state:
+            st.success(st.session_state["save_status_chip"])
+
+        pdf_dir = config_mgr.get("bill_pdf_dir", "./bills")
+        pdf_password = config_mgr.get("pdf_password", "")
 
         st.divider()
         st.subheader("🔍 交易過濾設定")
