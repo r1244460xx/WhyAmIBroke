@@ -332,10 +332,6 @@ def main():
     if auto_refund_offset and not df.empty:
         df, offset_df = process_refund_offsets(df)
 
-    # Filter out amounts <= min_amount globally if min_amount > 0
-    if min_amount > 0:
-        df = df[df["金額 (NT$)"] > min_amount]
-
     # Tabs
     tab1, tab2, tab3 = st.tabs(["📊 總覽報表", "📑 交易明細與搜尋", "📁 帳單檔案管理"])
 
@@ -355,6 +351,11 @@ def main():
         if not active_months and months:
             active_months = [months[0]]
             st.session_state["active_months"] = active_months
+
+        # Apply min_amount threshold exclusively to Tab 1 (Overview Dashboard)
+        overview_df = df.copy()
+        if min_amount > 0:
+            overview_df = overview_df[overview_df["金額 (NT$)"] > min_amount]
 
         # Initialize individual checkbox state if not present
         for m in months:
@@ -380,7 +381,7 @@ def main():
                 
                 with st.form("month_filter_form", border=False):
                     for m in months:
-                        m_count = len(df[df["帳單月份"] == m])
+                        m_count = len(overview_df[overview_df["帳單月份"] == m])
                         st.checkbox(
                             f"📅 {m} 帳單 ({m_count} 筆交易)",
                             key=f"cb_month_{m}"
@@ -394,7 +395,7 @@ def main():
                         st.rerun()
         
         selected_months = st.session_state.get("active_months", months)
-        filtered_df = df[df["帳單月份"].isin(selected_months)] if selected_months else pd.DataFrame(columns=df.columns)
+        filtered_df = overview_df[overview_df["帳單月份"].isin(selected_months)] if selected_months else pd.DataFrame(columns=overview_df.columns)
 
         # Always exclude payment records (only count positive purchases)
         if not filtered_df.empty:
@@ -564,11 +565,16 @@ def main():
         f_col1, f_col2 = st.columns([1, 2])
         with f_col1:
             m_options = ["全部"] + sorted(list(df["帳單月份"].unique()), reverse=True)
-            sel_m = st.selectbox("篩選帳單月份", m_options)
+            default_m_idx = 1 if len(m_options) > 1 else 0
+            sel_m = st.selectbox("篩選帳單月份", m_options, index=default_m_idx)
         with f_col2:
             kw = st.text_input("搜尋交易說明關鍵字 (例如: 全聯 / 高鐵 / 露天)", "")
 
         detail_df = df.copy()
+        # Always exclude payment records (only keep positive purchase transactions)
+        if not detail_df.empty:
+            detail_df = detail_df[detail_df["金額 (NT$)"] > 0]
+
         if sel_m != "全部":
             detail_df = detail_df[detail_df["帳單月份"] == sel_m]
         if kw.strip():
