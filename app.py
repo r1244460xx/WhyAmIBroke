@@ -464,7 +464,7 @@ def main():
                 st.plotly_chart(fig_bar, use_container_width=True)
 
             with c_right:
-                st.subheader("🗓️ 各月總花費對比")
+                st.subheader("🗓️ 帳單月份消費總額")
                 monthly_summary = filtered_df.copy()
                 monthly_df = monthly_summary.groupby("帳單月份")["金額 (NT$)"].sum().reset_index()
                 monthly_df = monthly_df.sort_values(by="帳單月份", ascending=True)
