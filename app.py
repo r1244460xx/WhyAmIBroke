@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern dark design with strict metric card styling
+# Custom CSS for modern dark design with strict uniform metric card styling
 st.markdown("""
 <style>
     .main {
@@ -66,58 +66,31 @@ st.markdown("""
         text-overflow: ellipsis;
     }
 
-    /* Style for clickable div card class */
     .clickable-card {
         cursor: pointer !important;
     }
 
-    /* Hide the Streamlit trigger button completely from UI */
-    .hidden-button-wrapper {
-        display: none !important;
-        height: 0 !important;
-        width: 0 !important;
-        overflow: hidden !important;
+    /* Layer the native Streamlit button directly over the metric card using negative margin */
+    .st-key-btn_count_dialog_trigger {
+        margin-top: -130px !important;
+        height: 130px !important;
+        position: relative !important;
+        z-index: 10 !important;
+    }
+    .st-key-btn_count_dialog_trigger button {
+        width: 100% !important;
+        height: 130px !important;
+        min-height: 130px !important;
+        max-height: 130px !important;
+        opacity: 0 !important;
+        cursor: pointer !important;
         margin: 0 !important;
         padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
     }
 </style>
-
-<script>
-    (function() {
-        if (window.__cardSelectionClickGuardInstalled) return;
-        window.__cardSelectionClickGuardInstalled = true;
-
-        // Use mouseup to accurately catch mouse drag release events!
-        document.addEventListener('mouseup', function(e) {
-            const card = e.target.closest('#count_card_div');
-            if (!card) return;
-            
-            // Check if user is currently selecting/highlighting any text
-            const selectedText = window.getSelection() ? window.getSelection().toString().trim() : '';
-            if (selectedText.length > 0) {
-                return; // User is dragging/selecting text, do NOT trigger modal!
-            }
-            
-            // Check if user clicked directly on the text elements
-            const isTextClick = e.target.classList.contains('metric-title') || 
-                                e.target.classList.contains('metric-value') || 
-                                e.target.closest('.metric-title') || 
-                                e.target.closest('.metric-value');
-            if (isTextClick) {
-                return; // User clicked on text, do NOT trigger modal!
-            }
-            
-            // User clicked on blank background/padding of the card -> trigger hidden Streamlit button
-            const hiddenWrapper = document.querySelector('.hidden-button-wrapper');
-            if (hiddenWrapper) {
-                const btn = hiddenWrapper.querySelector('button');
-                if (btn) {
-                    btn.click();
-                }
-            }
-        });
-    })();
-</script>
 """, unsafe_allow_html=True)
 
 
@@ -447,19 +420,16 @@ def main():
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         
         with col2:
-            # 1. Render identical HTML div container (100% standard text selection browser behavior)
+            # 100% Identical HTML markup + Direct Native Streamlit Button Overlay
             st.markdown(
-                f'<div class="metric-card clickable-card" id="count_card_div">'
+                f'<div class="metric-card clickable-card">'
                 f'  <div class="metric-title">總消費筆數</div>'
                 f'  <div class="metric-value">{total_count} 筆</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
-            # 2. Render invisible Streamlit trigger button
-            st.markdown('<div class="hidden-button-wrapper">', unsafe_allow_html=True)
-            if st.button("hidden_trigger", key="btn_trigger_count_modal", use_container_width=True):
+            if st.button(" ", key="btn_count_dialog_trigger", use_container_width=True):
                 show_transaction_count_modal(filtered_df)
-            st.markdown('</div>', unsafe_allow_html=True)
 
         with col3:
             st.markdown(f'<div class="metric-card"><div class="metric-title">平均單筆消費</div><div class="metric-value">NT$ {avg_spend:,.0f}</div></div>', unsafe_allow_html=True)
