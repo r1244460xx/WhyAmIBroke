@@ -400,22 +400,22 @@ def main():
             max_spend = 0
             max_desc = "無"
 
-        # Dynamic font sizes for card 4
+        # Dynamic font sizes for card 3 (單筆最高金額)
         desc_len = len(max_desc)
         spend_str = f"NT$ {max_spend:,.0f}"
         spend_len = len(spend_str)
 
-        if desc_len > 16 or spend_len > 10:
-            amt_font_size = "1.2rem"
-            desc_font_size = "0.72rem"
-        elif desc_len > 10 or spend_len > 8:
-            amt_font_size = "1.38rem"
-            desc_font_size = "0.78rem"
+        if desc_len > 22 or spend_len > 12:
+            amt_font_size = "1.45rem"
+            desc_font_size = "0.8rem"
+        elif desc_len > 14 or spend_len > 9:
+            amt_font_size = "1.6rem"
+            desc_font_size = "0.84rem"
         else:
-            amt_font_size = "1.55rem"
-            desc_font_size = "0.82rem"
+            amt_font_size = "1.75rem"
+            desc_font_size = "0.88rem"
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown(f'<div class="metric-card"><div class="metric-title">總消費金額</div><div class="metric-value">NT$ {total_spend:,.0f}</div></div>', unsafe_allow_html=True)
         
@@ -432,8 +432,6 @@ def main():
                 show_transaction_count_modal(filtered_df)
 
         with col3:
-            st.markdown(f'<div class="metric-card"><div class="metric-title">平均單筆消費</div><div class="metric-value">NT$ {avg_spend:,.0f}</div></div>', unsafe_allow_html=True)
-        with col4:
             st.markdown(
                 f'<div class="metric-card">'
                 f'  <div class="metric-title">單筆最高金額</div>'
@@ -454,13 +452,41 @@ def main():
             with c_left:
                 st.subheader("📈 每日消費金額分布")
                 daily_df = filtered_df.groupby(filtered_df["交易日期"].dt.strftime('%Y-%m-%d'))["金額 (NT$)"].sum().reset_index()
+                daily_df = daily_df.sort_values(by="交易日期", ascending=True)
+
                 fig_bar = px.bar(
                     daily_df,
                     x="交易日期",
                     y="金額 (NT$)",
+                    text_auto=',.0f',
                     color_discrete_sequence=["#38BDF8"]
                 )
-                fig_bar.update_layout(margin=dict(t=20, b=20, l=20, r=20), xaxis_title="日期", yaxis_title="金額 (NT$)")
+                
+                # High-contrast value font above daily bars
+                fig_bar.update_traces(
+                    textposition="outside",
+                    textfont=dict(
+                        family="'JetBrains Mono', 'DIN Alternate', 'SF Pro Display', 'Inter', -apple-system, sans-serif",
+                        size=14,
+                        color="#FFFFFF"
+                    ),
+                    cliponaxis=False
+                )
+
+                max_daily = daily_df["金額 (NT$)"].max() if not daily_df.empty else 0
+                fig_bar.update_layout(
+                    margin=dict(t=25, b=20, l=20, r=20),
+                    xaxis=dict(
+                        type="category",
+                        categoryorder="category ascending",
+                        title="交易日期",
+                        tickangle=-45 if len(daily_df) > 7 else 0
+                    ),
+                    yaxis=dict(
+                        title="金額 (NT$)",
+                        range=[0, max_daily * 1.18] if max_daily > 0 else None
+                    )
+                )
                 st.plotly_chart(fig_bar, use_container_width=True)
 
             with c_right:
