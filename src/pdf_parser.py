@@ -1,7 +1,9 @@
 import os
 import re
+import unicodedata
 from datetime import datetime
 import pypdf
+
 try:
     import pdfplumber
 except ImportError:
@@ -13,7 +15,7 @@ class CreditCardPDFParser:
         self.password = password
 
     def extract_text_from_pdf(self, pdf_path):
-        """Extract all text lines from PDF using pypdf / pdfplumber."""
+        """Extract all text lines from PDF using pdfplumber with fallback to pypdf."""
         lines = []
         if pdfplumber:
             try:
@@ -41,6 +43,7 @@ class CreditCardPDFParser:
         return [line.strip() for line in lines if line.strip()]
 
     def parse_pdf(self, pdf_path):
+        """Parse a statement PDF and return structured metadata and transaction list."""
         file_name = os.path.basename(pdf_path)
         lines = self.extract_text_from_pdf(pdf_path)
 
@@ -56,6 +59,7 @@ class CreditCardPDFParser:
         }
 
     def _detect_statement_month(self, file_name, lines):
+        """Detect statement year and month from filename or PDF text content."""
         m = re.search(r'(20\d{2})[-_]?([01]\d)', file_name)
         if m:
             return f"{m.group(1)}-{m.group(2)}"
@@ -74,6 +78,7 @@ class CreditCardPDFParser:
         return datetime.now().strftime("%Y-%m")
 
     def _parse_transactions(self, lines):
+        """Extract date pairs, description, amount and card number from text lines."""
         transactions = []
         current_card = ""
 
@@ -113,11 +118,11 @@ class CreditCardPDFParser:
                 if amount is not None:
                     desc = " ".join(desc_parts).strip() if desc_parts else ""
 
-                    # If description is empty or numeric (e.g. "5,825"), check the line right above!
+                    # If description is empty or numeric (e.g. "5,825"), check the line right above
                     if not desc or re.match(r'^-?\d+(,\d+)*(\.\d+)?$', desc):
                         if idx > 0:
                             prev_line = lines[idx - 1]
-                            # Make sure prev_line is not a header, not a date line, and not a card info line
+                            # Ensure prev_line is not a header, not a date line, and not a card info line
                             if not re.search(r'^\d{2,4}/\d{1,2}/\d{1,2}', prev_line) and not any(kw in prev_line for kw in ["消費日", "交易日期", "卡號末四碼", "頁數"]):
                                 desc = prev_line
 
@@ -143,15 +148,15 @@ class CreditCardPDFParser:
         return transactions
 
     def _clean_description(self, desc):
+        """Normalize Unicode characters (NFKC) and clean trailing whitespace / country codes."""
         if not desc:
             return ""
-        import unicodedata
         desc = unicodedata.normalize('NFKC', desc).strip()
-        # Clean trailing country code TW if separated by space
         desc = re.sub(r'\s+TW$', '', desc).strip()
         return desc
 
     def _format_roc_date(self, date_str):
+        """Format ROC date (e.g. 115/07/24) into standard ISO YYYY-MM-DD string."""
         parts = date_str.split("/")
         if len(parts) == 3:
             y = int(parts[0])

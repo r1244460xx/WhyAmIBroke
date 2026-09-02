@@ -216,7 +216,11 @@ def process_refund_offsets(df):
     return pd.DataFrame(remaining_records), pd.DataFrame(matched_records)
 
 
+@st.cache_data(show_spinner="📂 正在讀取並解析 PDF 帳單...")
 def load_and_parse_all_pdfs(pdf_dir, password):
+    """
+    Parse all PDF statements in directory and cache the result for instant UI responses.
+    """
     parser = CreditCardPDFParser(password=password)
 
     pdf_files = glob.glob(os.path.join(pdf_dir, "*.pdf")) + glob.glob(os.path.join(pdf_dir, "*.PDF"))
@@ -289,11 +293,20 @@ def main():
         pdf_dir = st.text_input("帳單 PDF 目錄", value=config_mgr.get("bill_pdf_dir", "./bills"))
         pdf_password = st.text_input("PDF 解密密碼", value=config_mgr.get("pdf_password", ""), type="password")
 
-        if st.button("💾 儲存 PDF 設定", use_container_width=True):
-            config_mgr.set("bill_pdf_dir", pdf_dir)
-            config_mgr.set("pdf_password", pdf_password)
-            st.success("設定已儲存至 config.json！")
-            st.rerun()
+        c_save, c_refresh = st.columns([1, 1])
+        with c_save:
+            if st.button("💾 儲存設定", use_container_width=True):
+                config_mgr.set("bill_pdf_dir", pdf_dir)
+                config_mgr.set("pdf_password", pdf_password)
+                st.cache_data.clear()
+                st.success("設定已儲存！")
+                st.rerun()
+
+        with c_refresh:
+            if st.button("🔄 重新掃描", use_container_width=True, help="清除記憶體快取並重新掃描所有 PDF 帳單"):
+                st.cache_data.clear()
+                st.success("快取已清除，正在重新掃描...")
+                st.rerun()
 
         st.divider()
         st.subheader("🔍 交易過濾設定")
