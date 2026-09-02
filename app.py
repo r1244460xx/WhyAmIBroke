@@ -400,7 +400,7 @@ def main():
                             form_selected.append(m)
 
                     st.markdown("<br>", unsafe_allow_html=True)
-                    apply_btn = st.form_submit_button("✅ 一鍵套用所選月份", use_container_width=True)
+                    apply_btn = st.form_submit_button("套用", use_container_width=True)
                     
                     if apply_btn:
                         st.session_state["active_months"] = form_selected
