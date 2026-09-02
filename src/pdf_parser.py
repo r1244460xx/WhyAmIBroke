@@ -147,8 +147,8 @@ class CreditCardPDFParser:
             return ""
         import unicodedata
         desc = unicodedata.normalize('NFKC', desc).strip()
-        desc = re.sub(r'(?:TAIPEI|Taipei|TAOYUA|KAOHSI|NEW TAI)\s*(?:TW)?$', '', desc).strip()
-        desc = re.sub(r'TW$', '', desc).strip()
+        # Clean trailing country code TW if separated by space
+        desc = re.sub(r'\s+TW$', '', desc).strip()
         return desc
 
     def _format_roc_date(self, date_str):

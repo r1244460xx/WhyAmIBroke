@@ -141,6 +141,8 @@ def process_refund_offsets(df):
     """
     Match refund transactions with corresponding original purchase transactions
     and remove both from the dataset before any statistics are computed.
+    Enforces time causality (a refund on date T can only match a purchase on/before date T,
+    selecting the closest prior purchase).
     """
     if df.empty:
         return df, pd.DataFrame()
@@ -151,9 +153,9 @@ def process_refund_offsets(df):
     n = len(records)
     matched_indices = set()
     
+    # 1. Identify all refund candidate indices
+    refund_indices = []
     for i in range(n):
-        if i in matched_indices:
-            continue
         rec_i = records[i]
         desc_i = str(rec_i.get("交易說明", ""))
         amt_i = float(rec_i.get("金額 (NT$)", 0))
@@ -162,26 +164,52 @@ def process_refund_offsets(df):
         is_refund_cand = not is_payment_i and (
             amt_i < 0 or any(kw in desc_i for kw in ["退貨", "刷退", "退款", "沖銷", "退費", "CANCEL", "REFUND", "REVERSAL"])
         )
-        
         if is_refund_cand:
-            base_m_i = clean_merchant_name(desc_i)
-            target_amt = abs(amt_i)
+            refund_indices.append(i)
             
-            for j in range(n):
-                if j == i or j in matched_indices:
-                    continue
-                rec_j = records[j]
-                desc_j = str(rec_j.get("交易說明", ""))
-                amt_j = float(rec_j.get("金額 (NT$)", 0))
+    # 2. For each refund, find the closest matching prior purchase (T_purchase <= T_refund)
+    for i in refund_indices:
+        if i in matched_indices:
+            continue
+        rec_i = records[i]
+        desc_i = str(rec_i.get("交易說明", ""))
+        amt_i = float(rec_i.get("金額 (NT$)", 0))
+        date_i = rec_i.get("交易日期")
+        base_m_i = clean_merchant_name(desc_i)
+        target_amt = abs(amt_i)
+        
+        best_j = None
+        best_time_diff = None
+        
+        for j in range(n):
+            if j == i or j in matched_indices or j in refund_indices:
+                continue
+            rec_j = records[j]
+            desc_j = str(rec_j.get("交易說明", ""))
+            amt_j = float(rec_j.get("金額 (NT$)", 0))
+            date_j = rec_j.get("交易日期")
+            
+            is_payment_j = any(kw in desc_j for kw in payment_keywords)
+            if not is_payment_j and amt_j > 0 and abs(amt_j - target_amt) < 0.01:
+                # Time causality constraint: purchase must occur on or before the refund date (T_purchase <= T_refund)
+                if pd.notna(date_i) and pd.notna(date_j):
+                    if date_j > date_i:
+                        continue  # Absolute constraint: cannot refund a future transaction!
+                    time_diff = (date_i - date_j).total_seconds()
+                else:
+                    time_diff = 0
                 
-                is_payment_j = any(kw in desc_j for kw in payment_keywords)
-                if not is_payment_j and amt_j > 0 and abs(amt_j - target_amt) < 0.01:
-                    base_m_j = clean_merchant_name(desc_j)
-                    if base_m_i == base_m_j or (base_m_i and base_m_j and (base_m_i in base_m_j or base_m_j in base_m_i)):
-                        matched_indices.add(i)
-                        matched_indices.add(j)
-                        break
+                base_m_j = clean_merchant_name(desc_j)
+                if base_m_i == base_m_j or (base_m_i and base_m_j and (base_m_i in base_m_j or base_m_j in base_m_i)):
+                    # Select the matching prior purchase that is closest in time to the refund
+                    if best_time_diff is None or time_diff < best_time_diff:
+                        best_time_diff = time_diff
+                        best_j = j
                         
+        if best_j is not None:
+            matched_indices.add(i)
+            matched_indices.add(best_j)
+            
     remaining_records = [records[k] for k in range(n) if k not in matched_indices]
     matched_records = [records[k] for k in range(n) if k in matched_indices]
     
@@ -332,14 +360,14 @@ def main():
         # Filter strictly by 帳單月份 (Statement Month PDF file)
         months = sorted(list(df["帳單月份"].dropna().unique()), reverse=True)
         
-        # Initialize session_state for active months if not set
+        # Initialize session_state for active months if not set (default to only the most recent month)
         if "active_months" not in st.session_state:
-            st.session_state["active_months"] = months.copy()
+            st.session_state["active_months"] = [months[0]] if months else []
 
         # Filter active months to only include existing months
         active_months = [m for m in st.session_state["active_months"] if m in months]
         if not active_months and months:
-            active_months = months.copy()
+            active_months = [months[0]]
             st.session_state["active_months"] = active_months
 
         with c_filter1:
