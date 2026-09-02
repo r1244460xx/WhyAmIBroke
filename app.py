@@ -254,6 +254,41 @@ def show_transaction_count_modal(filtered_df):
         st.info("無任何交易紀錄")
 
 
+def select_folder_dialog(initial_dir="./bills"):
+    """Open a native OS folder picker dialog to select a directory, defaulting to ./bills."""
+    import sys
+    import subprocess
+    import os
+
+    abs_dir = os.path.abspath(initial_dir if (initial_dir and os.path.exists(initial_dir)) else "./bills")
+
+    # macOS native Finder dialog via osascript
+    if sys.platform == "darwin":
+        try:
+            cmd = f"""osascript -e 'POSIX path of (choose folder with prompt "請選擇帳單 PDF 資料夾:" default location (POSIX file "{abs_dir}"))'"""
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip()
+        except Exception:
+            pass
+
+    # Windows / Linux / fallback via tkinter
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        selected_dir = filedialog.askdirectory(initialdir=abs_dir, title="選擇帳單 PDF 資料夾")
+        root.destroy()
+        if selected_dir:
+            return selected_dir
+    except Exception as e:
+        print(f"Directory dialog fallback error: {e}")
+    
+    return None
+
+
 def main():
     st.title("💳 信用卡帳單分析報表")
     
@@ -263,7 +298,22 @@ def main():
     with st.sidebar:
         st.header("⚙️ 設定與過濾")
         
-        pdf_dir = st.text_input("帳單 PDF 目錄", value=config_mgr.get("bill_pdf_dir", "./bills"))
+        st.caption("📂 帳單 PDF 目錄")
+        c_dir_txt, c_dir_btn = st.columns([4, 1])
+        with c_dir_txt:
+            current_dir = st.session_state.get("selected_pdf_dir", config_mgr.get("bill_pdf_dir", "./bills"))
+            pdf_dir = st.text_input("帳單 PDF 目錄", value=current_dir, label_visibility="collapsed")
+            if pdf_dir != current_dir:
+                st.session_state["selected_pdf_dir"] = pdf_dir
+        with c_dir_btn:
+            if st.button("📁", use_container_width=True, help="點擊開啟電腦檔案總管/Finder 選擇資料夾 (預設位於 ./bills)"):
+                chosen_dir = select_folder_dialog(pdf_dir)
+                if chosen_dir and os.path.exists(chosen_dir):
+                    st.session_state["selected_pdf_dir"] = chosen_dir
+                    config_mgr.set("bill_pdf_dir", chosen_dir)
+                    st.cache_data.clear()
+                    st.rerun()
+
         pdf_password = st.text_input("PDF 解密密碼", value=config_mgr.get("pdf_password", ""), type="password")
 
         c_save, c_refresh = st.columns([1, 1])
