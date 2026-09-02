@@ -356,27 +356,41 @@ def main():
             active_months = [months[0]]
             st.session_state["active_months"] = active_months
 
+        # Initialize individual checkbox state if not present
+        for m in months:
+            if f"cb_month_{m}" not in st.session_state:
+                st.session_state[f"cb_month_{m}"] = (m in active_months)
+
         with c_month:
             with st.popover(f"🗓️ 選擇帳單月份 (已選 {len(active_months)} / {len(months)} 個月)", use_container_width=True):
+                # Side-by-side [ 全選 ] and [ 全取消 ] buttons
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if st.button("🔘 全選", key="btn_select_all_months", use_container_width=True):
+                        for m in months:
+                            st.session_state[f"cb_month_{m}"] = True
+                        st.rerun()
+                with btn_col2:
+                    if st.button("✖️ 全取消", key="btn_deselect_all_months", use_container_width=True):
+                        for m in months:
+                            st.session_state[f"cb_month_{m}"] = False
+                        st.rerun()
+
+                st.caption("勾選欲納入統計的帳單月份，確認後點擊「套用」：")
+                
                 with st.form("month_filter_form", border=False):
-                    st.caption("勾選欲納入統計的帳單月份，選取月份 PDF 內的所有交易項目均會完整納入統計與列表：")
-                    
-                    form_selected = []
                     for m in months:
                         m_count = len(df[df["帳單月份"] == m])
-                        is_checked = st.checkbox(
+                        st.checkbox(
                             f"📅 {m} 帳單 ({m_count} 筆交易)",
-                            value=(m in active_months),
-                            key=f"form_cb_{m}"
+                            key=f"cb_month_{m}"
                         )
-                        if is_checked:
-                            form_selected.append(m)
 
                     st.markdown("<br>", unsafe_allow_html=True)
                     apply_btn = st.form_submit_button("套用", use_container_width=True)
                     
                     if apply_btn:
-                        st.session_state["active_months"] = form_selected
+                        st.session_state["active_months"] = [m for m in months if st.session_state.get(f"cb_month_{m}", False)]
                         st.rerun()
         
         selected_months = st.session_state.get("active_months", months)
