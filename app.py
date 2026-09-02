@@ -368,7 +368,7 @@ def main():
 
     # TAB 1: OVERVIEW DASHBOARD
     with tab1:
-        c_filter1, c_filter2 = st.columns([2, 1])
+        c_month, _ = st.columns([1, 2])
         
         # Filter strictly by 帳單月份 (Statement Month PDF file)
         months = sorted(list(df["帳單月份"].dropna().unique()), reverse=True)
@@ -383,7 +383,7 @@ def main():
             active_months = [months[0]]
             st.session_state["active_months"] = active_months
 
-        with c_filter1:
+        with c_month:
             with st.popover(f"🗓️ 選擇帳單月份 (已選 {len(active_months)} / {len(months)} 個月)", use_container_width=True):
                 with st.form("month_filter_form", border=False):
                     st.caption("勾選欲納入統計的帳單月份，選取月份 PDF 內的所有交易項目均會完整納入統計與列表：")
@@ -405,14 +405,12 @@ def main():
                     if apply_btn:
                         st.session_state["active_months"] = form_selected
                         st.rerun()
-
-        with c_filter2:
-            exclude_payments = st.checkbox("扣除 [網路銀行繳款/自動扣繳] (負數金額)", value=True)
         
         selected_months = st.session_state.get("active_months", months)
         filtered_df = df[df["帳單月份"].isin(selected_months)] if selected_months else pd.DataFrame(columns=df.columns)
 
-        if exclude_payments and not filtered_df.empty:
+        # Always exclude payment records (only count positive purchases)
+        if not filtered_df.empty:
             filtered_df = filtered_df[filtered_df["金額 (NT$)"] > 0]
 
         # KPI Metrics
