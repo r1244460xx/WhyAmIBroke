@@ -91,77 +91,6 @@ st.markdown("""
         box-shadow: none !important;
     }
 
-    /* Eliminate gap between directory input and folder browse button */
-    div[data-testid="stHorizontalBlock"]:has(.st-key-btn_browse_folder) {
-        gap: 6px !important;
-        align-items: center !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(.st-key-btn_browse_folder) > div[data-testid="column"]:first-child {
-        flex: 1 1 auto !important;
-        min-width: 0 !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(.st-key-btn_browse_folder) > div[data-testid="column"]:last-child {
-        flex: 0 0 42px !important;
-        width: 42px !important;
-        min-width: 42px !important;
-        max-width: 42px !important;
-    }
-
-    /* Folder browse button perfect vertical and horizontal centering (Borderless) */
-    .st-key-btn_browse_folder {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        height: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    .st-key-btn_browse_folder button {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 42px !important;
-        min-width: 42px !important;
-        height: 40px !important;
-        min-height: 40px !important;
-        max-height: 40px !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        font-size: 1.25rem !important;
-        line-height: 1 !important;
-        border: none !important;
-        outline: none !important;
-        box-shadow: none !important;
-        background: transparent !important;
-        cursor: pointer !important;
-        border-radius: 8px !important;
-    }
-    .st-key-btn_browse_folder button:hover {
-        border: none !important;
-        outline: none !important;
-        box-shadow: none !important;
-        background: rgba(255, 255, 255, 0.08) !important;
-    }
-    .st-key-btn_browse_folder button:focus,
-    .st-key-btn_browse_folder button:active {
-        border: none !important;
-        outline: none !important;
-        box-shadow: none !important;
-        background: rgba(255, 255, 255, 0.12) !important;
-    }
-    .st-key-btn_browse_folder button p,
-    .st-key-btn_browse_folder button div,
-    .st-key-btn_browse_folder button span {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 100% !important;
-        height: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        line-height: 1 !important;
-        font-size: 1.25rem !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -326,41 +255,6 @@ def show_transaction_count_modal(filtered_df):
         st.info("無任何交易紀錄")
 
 
-def select_folder_dialog(initial_dir="./bills"):
-    """Open a native OS folder picker dialog to select a directory, defaulting to ./bills."""
-    import sys
-    import subprocess
-    import os
-
-    abs_dir = os.path.abspath(initial_dir if (initial_dir and os.path.exists(initial_dir)) else "./bills")
-
-    # macOS native Finder dialog via osascript
-    if sys.platform == "darwin":
-        try:
-            cmd = f"""osascript -e 'POSIX path of (choose folder with prompt "請選擇帳單 PDF 資料夾:" default location (POSIX file "{abs_dir}"))'"""
-            res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            if res.returncode == 0 and res.stdout.strip():
-                return res.stdout.strip()
-        except Exception:
-            pass
-
-    # Windows / Linux / fallback via tkinter
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        selected_dir = filedialog.askdirectory(initialdir=abs_dir, title="選擇帳單 PDF 資料夾")
-        root.destroy()
-        if selected_dir:
-            return selected_dir
-    except Exception as e:
-        print(f"Directory dialog fallback error: {e}")
-    
-    return None
-
-
 def main():
     st.title("💳 信用卡帳單分析報表")
     
@@ -376,21 +270,11 @@ def main():
         if "pending_pdf_dir" not in st.session_state:
             st.session_state["pending_pdf_dir"] = saved_dir
 
-        st.caption("📂 帳單 PDF 目錄")
-        c_dir_txt, c_dir_btn = st.columns([5, 1], gap="small")
-        with c_dir_txt:
-            current_dir_val = st.session_state.get("pending_pdf_dir", saved_dir)
-            pdf_dir_input = st.text_input("帳單 PDF 目錄", value=current_dir_val, label_visibility="collapsed")
-            if pdf_dir_input != current_dir_val:
-                st.session_state["pending_pdf_dir"] = pdf_dir_input
-        with c_dir_btn:
-            if st.button("📁", key="btn_browse_folder", use_container_width=True, help="點擊開啟電腦檔案總管/Finder 選擇資料夾 (預設位於 ./bills)"):
-                chosen_dir = select_folder_dialog(st.session_state["pending_pdf_dir"])
-                if chosen_dir and os.path.exists(chosen_dir):
-                    st.session_state["pending_pdf_dir"] = chosen_dir
-                    st.rerun()
+        pdf_dir_input = st.text_input("📂 帳單 PDF 目錄", value=st.session_state["pending_pdf_dir"], help="指定放置信用卡帳單 PDF 的資料夾路徑 (預設: ./bills)")
+        if pdf_dir_input != st.session_state["pending_pdf_dir"]:
+            st.session_state["pending_pdf_dir"] = pdf_dir_input
 
-        pdf_password_input = st.text_input("PDF 解密密碼", value=saved_pw, type="password")
+        pdf_password_input = st.text_input("🔑 PDF 解密密碼", value=saved_pw, type="password", help="電子帳單解鎖密碼（通常為身分證字號）")
 
         c_save, c_refresh = st.columns([1, 1])
         with c_save:
