@@ -91,12 +91,19 @@ st.markdown("""
         box-shadow: none !important;
     }
 
-    /* Floating Sticky Adder column */
+    /* Floating Sticky Adder column & Top Border Alignment */
     div[data-testid="column"]:has(.top10-adder-marker) {
         position: sticky !important;
         top: 80px !important;
         align-self: flex-start !important;
         z-index: 20 !important;
+    }
+    div[data-testid="column"]:has(.top10-adder-marker) > div {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    div[data-testid="column"]:has(.top10-adder-marker) div[data-testid="stVerticalBlockBorderWrapper"] {
+        margin-top: 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -580,14 +587,16 @@ def main():
                 st.session_state["top10_adder_open"] = True
             adder_open = st.session_state["top10_adder_open"]
 
-            t_col_title, t_col_btn = st.columns([4, 1.2])
-            with t_col_title:
+            if not adder_open:
+                t_col_title, t_col_btn = st.columns([5, 1.2])
+                with t_col_title:
+                    st.subheader("🔥 最高花費前 10 筆明細")
+                with t_col_btn:
+                    if st.button("🧮 開啟加法器", key="btn_open_adder", use_container_width=True):
+                        st.session_state["top10_adder_open"] = True
+                        st.rerun()
+            else:
                 st.subheader("🔥 最高花費前 10 筆明細")
-            with t_col_btn:
-                toggle_label = "✖️ 收合加法器" if adder_open else "🧮 開啟加法器"
-                if st.button(toggle_label, key="btn_toggle_adder", use_container_width=True):
-                    st.session_state["top10_adder_open"] = not adder_open
-                    st.rerun()
 
             top10_df = filtered_df.sort_values(by="金額 (NT$)", ascending=False).head(10)
             top10_display = top10_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]].copy().reset_index(drop=True)
@@ -598,8 +607,15 @@ def main():
 
             df_key = f"top10_df_sel_{st.session_state['adder_reset_id']}"
 
+            col_config = {
+                "金額 (NT$)": st.column_config.NumberColumn("金額 (NT$)", format="NT$ %,d"),
+                "交易日期": st.column_config.TextColumn("交易日期"),
+                "交易說明": st.column_config.TextColumn("交易說明"),
+                "帳單月份": st.column_config.TextColumn("帳單月份")
+            }
+
             if adder_open:
-                col_tbl, col_add = st.columns([2.8, 1.2], gap="medium")
+                col_tbl, col_add = st.columns([3, 1], gap="medium")
                 with col_tbl:
                     selection_event = st.dataframe(
                         top10_display,
@@ -607,10 +623,10 @@ def main():
                         hide_index=True,
                         on_select="rerun",
                         selection_mode="multi-row",
+                        column_config=col_config,
                         key=df_key
                     )
                 with col_add:
-                    st.markdown('<span class="top10-adder-marker"></span>', unsafe_allow_html=True)
                     selected_rows = []
                     if selection_event and hasattr(selection_event, "selection"):
                         sel = selection_event.selection
@@ -626,14 +642,47 @@ def main():
                     sel_count = len(selected_rows)
 
                     with st.container(border=True):
-                        st.markdown("##### 🧮 選取加法器 (SUM)")
-                        st.metric(label="已勾選總額", value=f"NT$ {total_sum:,.0f}")
-                        if sel_count == 0:
-                            st.caption("👈 請勾選左側表格項目")
+                        c_h_title, c_h_btn = st.columns([4, 1])
+                        with c_h_title:
+                            st.markdown("##### 🧮 即時加法器 <span class='top10-adder-marker'></span>", unsafe_allow_html=True)
+                        with c_h_btn:
+                            if st.button("✖", key="btn_close_adder", help="收合加法器", use_container_width=True):
+                                st.session_state["top10_adder_open"] = False
+                                st.rerun()
+
+                        if total_sum > 0:
+                            v_color = "#38BDF8"
+                            b_bg = "rgba(56, 189, 248, 0.12)"
+                            b_color = "#38BDF8"
+                            b_border = "1px solid rgba(56, 189, 248, 0.3)"
+                            b_text = f"● 已勾選 {sel_count} 筆"
                         else:
-                            st.caption(f"已勾選 {sel_count} 筆")
+                            v_color = "#94A3B8"
+                            b_bg = "rgba(148, 163, 184, 0.1)"
+                            b_color = "#94A3B8"
+                            b_border = "1px solid rgba(148, 163, 184, 0.2)"
+                            b_text = "○ 請勾選左側項目"
+
+                        card_html = (
+                            f'<div style="text-align: center; padding: 14px 8px; margin: 4px 0 6px 0; '
+                            f'background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">'
+                            f'<div style="font-size: 0.76rem; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">勾選總額 (SUM)</div>'
+                            f'<div style="font-family: \'JetBrains Mono\', monospace; font-size: 1.85rem; font-weight: 700; color: {v_color}; line-height: 1.2; text-shadow: 0 2px 10px rgba(56, 189, 248, 0.2);">'
+                            f'NT$ {total_sum:,.0f}'
+                            f'</div>'
+                            f'<div style="display: inline-block; margin-top: 10px; padding: 3px 12px; font-size: 0.75rem; font-weight: 500; color: {b_color}; background: {b_bg}; border: {b_border}; border-radius: 12px;">'
+                            f'{b_text}'
+                            f'</div>'
+                            f'</div>'
+                        )
+                        st.markdown(card_html, unsafe_allow_html=True)
             else:
-                st.dataframe(top10_display, use_container_width=True, hide_index=True)
+                st.dataframe(
+                    top10_display,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=col_config
+                )
 
     # TAB 2: TRANSACTION DETAILS & SEARCH
     with tab2:
