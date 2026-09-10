@@ -105,6 +105,17 @@ st.markdown("""
     div[data-testid="column"]:has(.top10-adder-marker) div[data-testid="stVerticalBlockBorderWrapper"] {
         margin-top: 0 !important;
     }
+
+    /* Ensure page canvas maintains sufficient scrollable height even when empty */
+    .main .block-container {
+        min-height: 80vh !important;
+        padding-bottom: 6rem !important;
+    }
+
+    /* Popover body smoothness and overscroll containment to prevent macOS elastic bounce */
+    div[data-testid="stPopoverBody"] {
+        overscroll-behavior: contain !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -496,7 +507,19 @@ def main():
         st.markdown("<br>", unsafe_allow_html=True)
 
         if filtered_df.empty:
-            st.warning("⚠️ 當前未勾選任何帳單月份或過濾條件下無任何交易資料。")
+            st.markdown(
+                '<div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.5), rgba(15, 23, 42, 0.6)); '
+                'border: 1px dashed rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 48px 24px; '
+                'text-align: center; margin: 20px 0; min-height: 260px; display: flex; flex-direction: column; '
+                'justify-content: center; align-items: center;">'
+                '<div style="font-size: 2.8rem; margin-bottom: 12px;">🗓️</div>'
+                '<div style="font-size: 1.15rem; font-weight: 600; color: #F1F5F9; margin-bottom: 8px;">當前未勾選任何帳單月份</div>'
+                '<div style="font-size: 0.88rem; color: #94A3B8; max-width: 480px; line-height: 1.6;">'
+                '請點擊右上角「<b>🗓️ 選擇帳單月份</b>」下拉選單勾選欲統計之月份，或點擊「<b>🔘 全選</b>」後按「<b>套用</b>」即可即時呈現消費明細與統計圖表。'
+                '</div>'
+                '</div>',
+                unsafe_allow_html=True
+            )
         else:
             # Charts Section
             c_left, c_right = st.columns([1, 1])
