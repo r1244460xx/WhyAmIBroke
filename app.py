@@ -91,6 +91,13 @@ st.markdown("""
         box-shadow: none !important;
     }
 
+    /* Floating Sticky Adder column */
+    div[data-testid="column"]:has(.top10-adder-marker) {
+        position: sticky !important;
+        top: 80px !important;
+        align-self: flex-start !important;
+        z-index: 20 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -568,12 +575,65 @@ def main():
                 )
                 st.plotly_chart(fig_monthly, use_container_width=True)
 
-            # Top Transactions Table
-            st.subheader("🔥 最高花費前 10 筆明細")
+            # Top Transactions Table & Floating Adder
+            if "top10_adder_open" not in st.session_state:
+                st.session_state["top10_adder_open"] = True
+            adder_open = st.session_state["top10_adder_open"]
+
+            t_col_title, t_col_btn = st.columns([4, 1.2])
+            with t_col_title:
+                st.subheader("🔥 最高花費前 10 筆明細")
+            with t_col_btn:
+                toggle_label = "✖️ 收合加法器" if adder_open else "🧮 開啟加法器"
+                if st.button(toggle_label, key="btn_toggle_adder", use_container_width=True):
+                    st.session_state["top10_adder_open"] = not adder_open
+                    st.rerun()
+
             top10_df = filtered_df.sort_values(by="金額 (NT$)", ascending=False).head(10)
-            top10_display = top10_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]].copy()
+            top10_display = top10_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]].copy().reset_index(drop=True)
             top10_display["交易日期"] = top10_display["交易日期"].dt.strftime('%Y-%m-%d')
-            st.dataframe(top10_display, use_container_width=True, hide_index=True)
+
+            if "adder_reset_id" not in st.session_state:
+                st.session_state["adder_reset_id"] = 0
+
+            df_key = f"top10_df_sel_{st.session_state['adder_reset_id']}"
+
+            if adder_open:
+                col_tbl, col_add = st.columns([2.8, 1.2], gap="medium")
+                with col_tbl:
+                    selection_event = st.dataframe(
+                        top10_display,
+                        use_container_width=True,
+                        hide_index=True,
+                        on_select="rerun",
+                        selection_mode="multi-row",
+                        key=df_key
+                    )
+                with col_add:
+                    st.markdown('<span class="top10-adder-marker"></span>', unsafe_allow_html=True)
+                    selected_rows = []
+                    if selection_event and hasattr(selection_event, "selection"):
+                        sel = selection_event.selection
+                        if hasattr(sel, "rows"):
+                            selected_rows = list(sel.rows)
+                        elif isinstance(sel, dict):
+                            selected_rows = list(sel.get("rows", []))
+                    elif isinstance(selection_event, dict) and "selection" in selection_event:
+                        selected_rows = list(selection_event["selection"].get("rows", []))
+
+                    selected_items = top10_display.iloc[selected_rows] if selected_rows else pd.DataFrame()
+                    total_sum = selected_items["金額 (NT$)"].sum() if not selected_items.empty else 0
+                    sel_count = len(selected_rows)
+
+                    with st.container(border=True):
+                        st.markdown("##### 🧮 選取加法器 (SUM)")
+                        st.metric(label="已勾選總額", value=f"NT$ {total_sum:,.0f}")
+                        if sel_count == 0:
+                            st.caption("👈 請勾選左側表格項目")
+                        else:
+                            st.caption(f"已勾選 {sel_count} 筆")
+            else:
+                st.dataframe(top10_display, use_container_width=True, hide_index=True)
 
     # TAB 2: TRANSACTION DETAILS & SEARCH
     with tab2:
