@@ -296,6 +296,8 @@ def main():
                 config_mgr.set("bill_pdf_dir", st.session_state["pending_pdf_dir"])
                 config_mgr.set("pdf_password", pdf_password_input)
                 st.cache_data.clear()
+                st.session_state.pop("active_months", None)
+                st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
                 st.session_state["save_status_chip"] = "✅ 設定已儲存並成功重新掃描！"
                 st.rerun()
         with c_refresh:
@@ -303,6 +305,8 @@ def main():
                 config_mgr.set("bill_pdf_dir", st.session_state["pending_pdf_dir"])
                 config_mgr.set("pdf_password", pdf_password_input)
                 st.cache_data.clear()
+                st.session_state.pop("active_months", None)
+                st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
                 st.session_state["save_status_chip"] = "✅ 快取已清除並成功重新掃描！"
                 st.rerun()
 
@@ -337,6 +341,7 @@ def main():
 
         if st.button("🔄 套用與更新過濾條件", use_container_width=True):
             config_mgr.set("min_amount_filter", max(0, int(min_amount)))
+            st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
             st.success("已更新過濾條件並儲存！")
             st.rerun()
 
@@ -373,22 +378,21 @@ def main():
         # Filter strictly by 帳單月份 (Statement Month PDF file)
         months = sorted(list(df["帳單月份"].dropna().unique()), reverse=True)
         
-        # Initialize session_state for active months if not set (default to only the most recent month)
+        # Initialize session_state for active months on first run (default to only the most recent month)
         if "active_months" not in st.session_state:
             st.session_state["active_months"] = [months[0]] if months else []
+            for m in months:
+                st.session_state[f"cb_month_{m}"] = (m == months[0])
 
-        # Filter active months to only include existing months
+        # Filter active months to only include existing months in dataset
         active_months = [m for m in st.session_state["active_months"] if m in months]
-        if not active_months and months:
-            active_months = [months[0]]
-            st.session_state["active_months"] = active_months
 
         # Apply min_amount threshold exclusively to Tab 1 (Overview Dashboard)
         overview_df = df.copy()
         if min_amount > 0:
             overview_df = overview_df[overview_df["金額 (NT$)"] > min_amount]
 
-        # Initialize individual checkbox state if not present
+        # Ensure any newly discovered months have checkbox state initialized
         for m in months:
             if f"cb_month_{m}" not in st.session_state:
                 st.session_state[f"cb_month_{m}"] = (m in active_months)
@@ -423,9 +427,11 @@ def main():
                     
                     if apply_btn:
                         st.session_state["active_months"] = [m for m in months if st.session_state.get(f"cb_month_{m}", False)]
+                        # Reset Top 10 table checkboxes and adder calculator state
+                        st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
                         st.rerun()
         
-        selected_months = st.session_state.get("active_months", months)
+        selected_months = active_months
         filtered_df = overview_df[overview_df["帳單月份"].isin(selected_months)] if selected_months else pd.DataFrame(columns=overview_df.columns)
 
         # Always exclude payment records (only count positive purchases)
