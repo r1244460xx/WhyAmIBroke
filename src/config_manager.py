@@ -5,7 +5,8 @@ DEFAULT_CONFIG = {
     "bill_pdf_dir": "./bills",
     "pdf_password": "",
     "min_amount_filter": 0,
-    "categories": {}
+    "categories": {},
+    "excluded_keywords": []
 }
 
 
@@ -36,6 +37,10 @@ class ConfigManager:
 
             if "pdf_password" not in data:
                 data["pdf_password"] = DEFAULT_CONFIG["pdf_password"]
+                updated = True
+
+            if "excluded_keywords" not in data or not isinstance(data["excluded_keywords"], list):
+                data["excluded_keywords"] = []
                 updated = True
 
             if updated:

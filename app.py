@@ -116,6 +116,11 @@ st.markdown("""
     div[data-testid="stPopoverBody"] {
         overscroll-behavior: contain !important;
     }
+
+    /* Hide Streamlit default "Press Enter to apply / submit form" instructions */
+    div[data-testid="InputInstructions"], span[data-testid="InputInstructions"] {
+        display: none !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -384,7 +389,9 @@ def main():
 
     # TAB 1: OVERVIEW DASHBOARD
     with tab1:
-        c_month, _ = st.columns([1, 2])
+        excluded_keywords = config_mgr.get("excluded_keywords", [])
+
+        c_month, c_exclude, _ = st.columns([1.2, 1.2, 1.6])
         
         # Filter strictly by 帳單月份 (Statement Month PDF file)
         months = sorted(list(df["帳單月份"].dropna().unique()), reverse=True)
@@ -398,8 +405,14 @@ def main():
         # Filter active months to only include existing months in dataset
         active_months = [m for m in st.session_state["active_months"] if m in months]
 
-        # Apply min_amount threshold exclusively to Tab 1 (Overview Dashboard)
+        # Apply excluded keywords and min_amount threshold exclusively to Tab 1 (Overview Dashboard)
         overview_df = df.copy()
+        if excluded_keywords:
+            valid_kws = [k.strip() for k in excluded_keywords if k and k.strip()]
+            if valid_kws:
+                pattern = "|".join([re.escape(k) for k in valid_kws])
+                overview_df = overview_df[~overview_df["交易說明"].astype(str).str.contains(pattern, case=False, na=False)]
+
         if min_amount > 0:
             overview_df = overview_df[overview_df["金額 (NT$)"] > min_amount]
 
@@ -441,6 +454,100 @@ def main():
                         # Reset Top 10 table checkboxes and adder calculator state
                         st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
                         st.rerun()
+
+        with c_exclude:
+            with st.popover(f"🚫 項目排除名單 ({len(excluded_keywords)} 項)", use_container_width=True):
+                # The very first button is always "排除關鍵字"
+                if st.button("➕ 排除關鍵字", key="btn_add_exclude_kw_toggle", use_container_width=True):
+                    st.session_state["show_add_exclude_input"] = not st.session_state.get("show_add_exclude_input", False)
+                    st.rerun()
+
+                # Inline add keyword input area
+                if st.session_state.get("show_add_exclude_input", False):
+                    with st.form("form_add_exclude_kw", border=False):
+                        st.caption("請輸入欲排除的交易說明關鍵字：")
+                        c_in, c_add, c_cancel = st.columns([3.2, 1, 1])
+                        with c_in:
+                            new_kw = st.text_input("新增排除關鍵字", placeholder="輸入排除關鍵字...", label_visibility="collapsed")
+                        with c_add:
+                            add_submitted = st.form_submit_button("+", help="新增排除關鍵字", use_container_width=True)
+                        with c_cancel:
+                            cancel_submitted = st.form_submit_button("✖", help="取消", use_container_width=True)
+
+                        if add_submitted:
+                            clean_kw = new_kw.strip()
+                            if clean_kw:
+                                cur_kws = config_mgr.get("excluded_keywords", [])
+                                if clean_kw not in cur_kws:
+                                    cur_kws.append(clean_kw)
+                                    config_mgr.set("excluded_keywords", cur_kws)
+                                    st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
+                                    st.session_state["show_add_exclude_input"] = False
+                                    st.rerun()
+                        elif cancel_submitted:
+                            st.session_state["show_add_exclude_input"] = False
+                            st.rerun()
+
+                st.markdown("<div style='margin: 8px 0; border-top: 1px solid rgba(255,255,255,0.08);'></div>", unsafe_allow_html=True)
+
+                if not excluded_keywords:
+                    st.caption("目前尚無排除關鍵字。點擊上方「➕ 排除關鍵字」即可新增。")
+                else:
+                    st.caption("若交易說明包含以下任一關鍵字，統計時將自動排除：")
+                    editing_idx = st.session_state.get("editing_exclude_idx", None)
+
+                    for idx, kw in enumerate(excluded_keywords):
+                        if editing_idx == idx:
+                            # Inline Edit Mode (no navigation)
+                            with st.form(f"form_edit_exclude_{idx}", border=False):
+                                e_col_in, e_col_save, e_col_cancel = st.columns([3.2, 1, 1])
+                                with e_col_in:
+                                    edit_val = st.text_input(
+                                        f"編輯關鍵字_{idx}",
+                                        value=kw,
+                                        placeholder="輸入排除關鍵字...",
+                                        label_visibility="collapsed"
+                                    )
+                                with e_col_save:
+                                    save_submitted = st.form_submit_button("💾", help="儲存變更", use_container_width=True)
+                                with e_col_cancel:
+                                    cancel_edit_submitted = st.form_submit_button("✖", help="取消編輯", use_container_width=True)
+
+                                if save_submitted:
+                                    clean_edit = edit_val.strip()
+                                    if clean_edit and clean_edit != kw:
+                                        cur_kws = config_mgr.get("excluded_keywords", [])
+                                        cur_kws[idx] = clean_edit
+                                        config_mgr.set("excluded_keywords", cur_kws)
+                                        st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
+                                    st.session_state.pop("editing_exclude_idx", None)
+                                    st.rerun()
+                                elif cancel_edit_submitted:
+                                    st.session_state.pop("editing_exclude_idx", None)
+                                    st.rerun()
+                        else:
+                            # Normal Display Mode
+                            row_col_kw, row_col_edit, row_col_del = st.columns([3, 1.2, 1])
+                            with row_col_kw:
+                                st.markdown(
+                                    f'<div style="padding: 7px 10px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; color: #FCA5A5; font-size: 0.86rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{kw}">'
+                                    f'🚫 {kw}'
+                                    f'</div>',
+                                    unsafe_allow_html=True
+                                )
+                            with row_col_edit:
+                                if st.button("✏️", key=f"btn_edit_exclude_{idx}", help="行內編輯", use_container_width=True):
+                                    st.session_state["editing_exclude_idx"] = idx
+                                    st.rerun()
+                            with row_col_del:
+                                if st.button("🗑️", key=f"btn_del_exclude_{idx}", help="刪除排除關鍵字", use_container_width=True):
+                                    cur_kws = config_mgr.get("excluded_keywords", [])
+                                    if 0 <= idx < len(cur_kws):
+                                        cur_kws.pop(idx)
+                                        config_mgr.set("excluded_keywords", cur_kws)
+                                        st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
+                                        st.session_state.pop("editing_exclude_idx", None)
+                                        st.rerun()
         
         selected_months = active_months
         filtered_df = overview_df[overview_df["帳單月份"].isin(selected_months)] if selected_months else pd.DataFrame(columns=overview_df.columns)
