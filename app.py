@@ -96,17 +96,24 @@ st.markdown("""
 
     /* Floating Sticky Adder column & Top Border Alignment */
     div[data-testid="column"]:has(.top10-adder-marker) {
+        position: -webkit-sticky !important;
         position: sticky !important;
         top: 80px !important;
         align-self: flex-start !important;
-        z-index: 20 !important;
+        z-index: 30 !important;
     }
     div[data-testid="column"]:has(.top10-adder-marker) > div {
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 80px !important;
         margin-top: 0 !important;
         padding-top: 0 !important;
     }
     div[data-testid="column"]:has(.top10-adder-marker) div[data-testid="stVerticalBlockBorderWrapper"] {
         margin-top: 0 !important;
+        background: #1E293B !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
     }
 
     /* Ensure page canvas maintains sufficient scrollable height even when empty */
@@ -836,31 +843,34 @@ def main():
                 )
                 st.plotly_chart(fig_monthly, use_container_width=True)
 
-            # Top Transactions Table & Floating Adder
+            # All Filtered Transactions Table & Floating Sticky Adder
             if "top10_adder_open" not in st.session_state:
                 st.session_state["top10_adder_open"] = True
             adder_open = st.session_state["top10_adder_open"]
 
+            # Sort all items in range strictly by date descending, then amount descending
+            table_df = filtered_df.sort_values(by=["交易日期", "金額 (NT$)"], ascending=[False, False])
+            table_cols = ["帳單月份", "銀行", "交易日期", "交易說明", "金額 (NT$)"] if "銀行" in table_df.columns else ["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]
+            table_display = table_df[table_cols].copy().reset_index(drop=True)
+            table_display["交易日期"] = table_display["交易日期"].dt.strftime('%Y-%m-%d')
+
+            table_title = f"🧾 範圍內消費明細清單 (共 {len(table_display)} 筆)"
+
             if not adder_open:
                 t_col_title, t_col_btn = st.columns([5, 1.2])
                 with t_col_title:
-                    st.subheader("🔥 最高花費前 10 筆明細")
+                    st.subheader(table_title)
                 with t_col_btn:
                     if st.button("🧮 開啟加法器", key="btn_open_adder", use_container_width=True):
                         st.session_state["top10_adder_open"] = True
                         st.rerun()
             else:
-                st.subheader("🔥 最高花費前 10 筆明細")
-
-            top10_df = filtered_df.sort_values(by="金額 (NT$)", ascending=False).head(10)
-            top_cols = ["帳單月份", "銀行", "交易日期", "交易說明", "金額 (NT$)"] if "銀行" in top10_df.columns else ["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]
-            top10_display = top10_df[top_cols].copy().reset_index(drop=True)
-            top10_display["交易日期"] = top10_display["交易日期"].dt.strftime('%Y-%m-%d')
+                st.subheader(table_title)
 
             if "adder_reset_id" not in st.session_state:
                 st.session_state["adder_reset_id"] = 0
 
-            df_key = f"top10_df_sel_{st.session_state['adder_reset_id']}"
+            df_key = f"table_df_sel_{st.session_state['adder_reset_id']}"
 
             col_config = {
                 "金額 (NT$)": st.column_config.NumberColumn("金額 (NT$)", format="NT$ %,d"),
@@ -870,11 +880,16 @@ def main():
                 "帳單月份": st.column_config.TextColumn("帳單月份")
             }
 
+            # Set table height dynamically so rows display naturally and the outer page scrolls,
+            # allowing the sticky floating adder to smoothly track the user's viewport
+            tbl_height = max(450, (len(table_display) + 1) * 36 + 10) if len(table_display) > 0 else 400
+
             if adder_open:
                 col_tbl, col_add = st.columns([3, 1], gap="medium")
                 with col_tbl:
                     selection_event = st.dataframe(
-                        top10_display,
+                        table_display,
+                        height=tbl_height,
                         use_container_width=True,
                         hide_index=True,
                         on_select="rerun",
@@ -893,7 +908,7 @@ def main():
                     elif isinstance(selection_event, dict) and "selection" in selection_event:
                         selected_rows = list(selection_event["selection"].get("rows", []))
 
-                    selected_items = top10_display.iloc[selected_rows] if selected_rows else pd.DataFrame()
+                    selected_items = table_display.iloc[selected_rows] if selected_rows else pd.DataFrame()
                     total_sum = selected_items["金額 (NT$)"].sum() if not selected_items.empty else 0
                     sel_count = len(selected_rows)
 
@@ -932,9 +947,15 @@ def main():
                             f'</div>'
                         )
                         st.markdown(card_html, unsafe_allow_html=True)
+
+                        if total_sum > 0:
+                            if st.button("🔄 全部重選", key="btn_clear_adder_sel", use_container_width=True, help="清空當前所有勾選項"):
+                                st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
+                                st.rerun()
             else:
                 st.dataframe(
-                    top10_display,
+                    table_display,
+                    height=tbl_height,
                     use_container_width=True,
                     hide_index=True,
                     column_config=col_config
