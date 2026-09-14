@@ -6,7 +6,10 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 
+import importlib
 from src.config_manager import ConfigManager
+import src.pdf_parser
+importlib.reload(src.pdf_parser)
 from src.pdf_parser import CreditCardPDFParser
 
 # Page setup
@@ -221,26 +224,50 @@ def process_refund_offsets(df):
 
 
 @st.cache_data(show_spinner="📂 正在讀取並解析 PDF 帳單...")
-def load_and_parse_all_pdfs(pdf_dir, password):
+def load_and_parse_all_pdfs(pdf_dir, password_configs, _cache_version="v2.2_strategy"):
     """
-    Parse all PDF statements in directory and cache the result for instant UI responses.
+    Parse all PDF statements in directory using prefix-matched passwords and cache the result.
     """
-    parser = CreditCardPDFParser(password=password)
-
     pdf_files = glob.glob(os.path.join(pdf_dir, "*.pdf")) + glob.glob(os.path.join(pdf_dir, "*.PDF"))
     pdf_files = sorted(list(set(pdf_files)))
 
     all_records = []
     scan_results = []
 
+    # Sort password_configs by prefix length descending so the most specific prefix is matched first
+    sorted_pw_configs = sorted(password_configs or [], key=lambda x: len(x.get("prefix", "")), reverse=True)
+
     for pdf_path in pdf_files:
         file_name = os.path.basename(pdf_path)
+        matched_pw = None
+        matched_prefix = None
+
+        # 1. Match by prefix
+        for item in sorted_pw_configs:
+            pfx = item.get("prefix", "").strip()
+            if pfx and file_name.lower().startswith(pfx.lower()):
+                matched_pw = item.get("password", "")
+                matched_prefix = pfx
+                break
+
+        # 2. Universal fallback (empty prefix)
+        if matched_pw is None:
+            for item in sorted_pw_configs:
+                pfx = item.get("prefix", "").strip()
+                if not pfx and item.get("password", ""):
+                    matched_pw = item.get("password", "")
+                    matched_prefix = "(通用預設)"
+                    break
+
         try:
+            parser = CreditCardPDFParser(password=matched_pw)
             parsed = parser.parse_pdf(pdf_path)
             transactions = parsed.get("transactions", [])
+            bank_name = parsed.get("bank_name", "未知")
             
             for t in transactions:
                 all_records.append({
+                    "銀行": bank_name,
                     "帳單月份": parsed.get("statement_month", "未知"),
                     "交易日期": t["trans_date"],
                     "入帳日期": t["post_date"],
@@ -252,16 +279,20 @@ def load_and_parse_all_pdfs(pdf_dir, password):
 
             scan_results.append({
                 "檔案名稱": file_name,
+                "銀行": bank_name,
                 "解析狀態": "✅ 解析成功" if transactions else "⚠️ 無交易明細",
                 "提取筆數": len(transactions),
-                "帳單月份": parsed.get("statement_month", "未知")
+                "帳單月份": parsed.get("statement_month", "未知"),
+                "配對前綴": matched_prefix if matched_prefix else "無"
             })
         except Exception as e:
             scan_results.append({
                 "檔案名稱": file_name,
+                "銀行": "未知",
                 "解析狀態": f"❌ 失敗: {str(e)}",
                 "提取筆數": 0,
-                "帳單月份": "未知"
+                "帳單月份": "未知",
+                "配對前綴": matched_prefix if matched_prefix else "未配對"
             })
 
     df = pd.DataFrame(all_records)
@@ -278,7 +309,8 @@ def show_transaction_count_modal(filtered_df):
     total_cnt = len(filtered_df)
     st.write(f"目前共 **{total_cnt}** 筆符合條件的交易（預設順序排列，點擊視窗外區域即可關閉）：")
     if not filtered_df.empty:
-        count_display = filtered_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]].copy()
+        cnt_cols = ["帳單月份", "銀行", "交易日期", "交易說明", "金額 (NT$)"] if "銀行" in filtered_df.columns else ["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]
+        count_display = filtered_df[cnt_cols].copy()
         count_display["交易日期"] = count_display["交易日期"].dt.strftime('%Y-%m-%d')
         st.dataframe(count_display, use_container_width=True, hide_index=True, height=450)
     else:
@@ -294,43 +326,131 @@ def main():
     with st.sidebar:
         st.header("⚙️ 設定與過濾")
         
-        saved_dir = config_mgr.get("bill_pdf_dir", "./bills")
-        saved_pw = config_mgr.get("pdf_password", "")
-        
-        if "pending_pdf_dir" not in st.session_state:
-            st.session_state["pending_pdf_dir"] = saved_dir
+        pdf_dir = "./bills"
+        if not os.path.exists(pdf_dir):
+            os.makedirs(pdf_dir, exist_ok=True)
 
-        pdf_dir_input = st.text_input("📂 帳單 PDF 目錄", value=st.session_state["pending_pdf_dir"], help="指定放置信用卡帳單 PDF 的資料夾路徑 (預設: ./bills)")
-        if pdf_dir_input != st.session_state["pending_pdf_dir"]:
-            st.session_state["pending_pdf_dir"] = pdf_dir_input
+        st.markdown(
+            '<div style="padding: 8px 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; margin-bottom: 12px; font-size: 0.85rem; color: #94A3B8;">'
+            '📂 <b>帳單目錄：</b> <code>./bills</code> <span style="font-size: 0.75rem; color: #64748B;">(固定路徑)</span>'
+            '</div>',
+            unsafe_allow_html=True
+        )
 
-        pdf_password_input = st.text_input("🔑 PDF 解密密碼", value=saved_pw, type="password", help="電子帳單解鎖密碼（通常為身分證字號）")
+        pdf_passwords = config_mgr.get("pdf_passwords", [])
 
-        c_save, c_refresh = st.columns([1, 1])
-        with c_save:
-            if st.button("💾 儲存設定", use_container_width=True):
-                config_mgr.set("bill_pdf_dir", st.session_state["pending_pdf_dir"])
-                config_mgr.set("pdf_password", pdf_password_input)
-                st.cache_data.clear()
-                st.session_state.pop("active_months", None)
-                st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
-                st.session_state["save_status_chip"] = "✅ 設定已儲存並成功重新掃描！"
-                st.rerun()
-        with c_refresh:
-            if st.button("🔄 重新掃描", use_container_width=True, help="清除快取並重新掃描所有 PDF 帳單"):
-                config_mgr.set("bill_pdf_dir", st.session_state["pending_pdf_dir"])
-                config_mgr.set("pdf_password", pdf_password_input)
-                st.cache_data.clear()
-                st.session_state.pop("active_months", None)
-                st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
-                st.session_state["save_status_chip"] = "✅ 快取已清除並成功重新掃描！"
+        with st.popover(f"🔑 帳單密碼管理 ({len(pdf_passwords)} 組)", use_container_width=True):
+            # First button is always "➕ 帳單密碼"
+            if st.button("➕ 帳單密碼", key="btn_toggle_add_pw", use_container_width=True):
+                st.session_state["show_add_pw_input"] = not st.session_state.get("show_add_pw_input", False)
                 st.rerun()
 
-        if "save_status_chip" in st.session_state:
-            st.success(st.session_state["save_status_chip"])
+            # Inline add password input area
+            if st.session_state.get("show_add_pw_input", False):
+                with st.form("form_add_pw_rule", border=False):
+                    st.caption("請輸入檔名前綴與對應解密密碼：")
+                    add_c_pfx = st.text_input("檔名前綴", placeholder="前綴 (例如: TSB_ / 富邦)...", label_visibility="collapsed")
+                    add_c_pwd = st.text_input("解密密碼", placeholder="PDF 密碼...", type="password", label_visibility="collapsed")
+                    
+                    btn_add_col, btn_cancel_col = st.columns([1, 1])
+                    with btn_add_col:
+                        add_pw_submit = st.form_submit_button("+", help="確認新增密碼設定", use_container_width=True)
+                    with btn_cancel_col:
+                        cancel_pw_submit = st.form_submit_button("✖", help="取消", use_container_width=True)
 
-        pdf_dir = config_mgr.get("bill_pdf_dir", "./bills")
-        pdf_password = config_mgr.get("pdf_password", "")
+                    if add_pw_submit:
+                        clean_pfx = add_c_pfx.strip()
+                        clean_pwd = add_c_pwd.strip()
+                        if clean_pwd:
+                            cur_pws = config_mgr.get("pdf_passwords", [])
+                            # If prefix already exists, update password; otherwise append
+                            match_item = next((item for item in cur_pws if item.get("prefix", "").strip().lower() == clean_pfx.lower()), None)
+                            if match_item:
+                                match_item["password"] = clean_pwd
+                            else:
+                                cur_pws.append({"prefix": clean_pfx, "password": clean_pwd})
+                            config_mgr.set("pdf_passwords", cur_pws)
+                            st.cache_data.clear()
+                            st.session_state.pop("active_months", None)
+                            st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
+                            st.session_state["show_add_pw_input"] = False
+                            st.rerun()
+                    elif cancel_pw_submit:
+                        st.session_state["show_add_pw_input"] = False
+                        st.rerun()
+
+            st.markdown("<div style='margin: 8px 0; border-top: 1px solid rgba(255,255,255,0.08);'></div>", unsafe_allow_html=True)
+
+            if not pdf_passwords:
+                st.caption("目前尚無密碼設定。請點擊上方「➕ 帳單密碼」新增。")
+            else:
+                st.caption("依檔名前綴自動配對對應解密密碼：")
+                editing_pw_idx = st.session_state.get("editing_pw_idx", None)
+
+                for idx, pw_item in enumerate(pdf_passwords):
+                    cur_pfx = pw_item.get("prefix", "")
+                    cur_pwd = pw_item.get("password", "")
+                    pfx_label = cur_pfx if cur_pfx else "(通用預設)"
+
+                    if editing_pw_idx == idx:
+                        # Inline Edit Mode (no navigation)
+                        with st.form(f"form_edit_pw_{idx}", border=False):
+                            edit_pfx = st.text_input("編輯前綴", value=cur_pfx, placeholder="前綴...", label_visibility="collapsed")
+                            edit_pwd = st.text_input("編輯密碼", value=cur_pwd, placeholder="PDF 密碼...", type="password", label_visibility="collapsed")
+                            
+                            e_save_col, e_cancel_col = st.columns([1, 1])
+                            with e_save_col:
+                                save_pw_submit = st.form_submit_button("💾", help="儲存變更", use_container_width=True)
+                            with e_cancel_col:
+                                cancel_edit_pw_submit = st.form_submit_button("✖", help="取消編輯", use_container_width=True)
+
+                            if save_pw_submit:
+                                clean_pfx = edit_pfx.strip()
+                                clean_pwd = edit_pwd.strip()
+                                if clean_pwd:
+                                    cur_pws = config_mgr.get("pdf_passwords", [])
+                                    cur_pws[idx] = {"prefix": clean_pfx, "password": clean_pwd}
+                                    config_mgr.set("pdf_passwords", cur_pws)
+                                    st.cache_data.clear()
+                                    st.session_state.pop("active_months", None)
+                                    st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
+                                st.session_state.pop("editing_pw_idx", None)
+                                st.rerun()
+                            elif cancel_edit_pw_submit:
+                                st.session_state.pop("editing_pw_idx", None)
+                                st.rerun()
+                    else:
+                        # Normal Display Mode
+                        row_info_col, row_edit_col, row_del_col = st.columns([3.2, 1, 1])
+                        with row_info_col:
+                            masked_pw = "•" * min(6, len(cur_pwd)) if cur_pwd else "(無)"
+                            st.markdown(
+                                f'<div style="padding: 7px 10px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px; font-size: 0.84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">'
+                                f'<b style="color: #38BDF8;">🏷️ {pfx_label}</b> <span style="color: #94A3B8; margin-left: 6px; letter-spacing: 2px;">{masked_pw}</span>'
+                                f'</div>',
+                                unsafe_allow_html=True
+                            )
+                        with row_edit_col:
+                            if st.button("✏️", key=f"btn_edit_pw_{idx}", help="行內編輯", use_container_width=True):
+                                st.session_state["editing_pw_idx"] = idx
+                                st.rerun()
+                        with row_del_col:
+                            if st.button("🗑️", key=f"btn_del_pw_{idx}", help="刪除密碼設定", use_container_width=True):
+                                cur_pws = config_mgr.get("pdf_passwords", [])
+                                if 0 <= idx < len(cur_pws):
+                                    cur_pws.pop(idx)
+                                    config_mgr.set("pdf_passwords", cur_pws)
+                                    st.cache_data.clear()
+                                    st.session_state.pop("active_months", None)
+                                    st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
+                                    st.session_state.pop("editing_pw_idx", None)
+                                    st.rerun()
+
+        if st.button("🔄 重新掃描帳單", use_container_width=True, help="清除快取並重新掃描所有 PDF 帳單"):
+            st.cache_data.clear()
+            st.session_state.pop("active_months", None)
+            st.session_state["adder_reset_id"] = st.session_state.get("adder_reset_id", 0) + 1
+            st.rerun()
 
         st.divider()
         st.subheader("🔍 交易過濾設定")
@@ -366,11 +486,7 @@ def main():
             config_mgr.set("min_amount_filter", max(0, int(min_amount)))
 
     # Main logic
-    if not os.path.exists(pdf_dir):
-        st.warning(f"⚠️ 指定的 PDF 目錄不存在: `{pdf_dir}`")
-        return
-
-    df, scan_df = load_and_parse_all_pdfs(pdf_dir, pdf_password)
+    df, scan_df = load_and_parse_all_pdfs(pdf_dir, pdf_passwords)
 
     if df.empty:
         st.info("ℹ️ 尚無可顯示的交易資料。請確認 `./bills` 目錄內是否有帳單 PDF 及密碼是否正確。")
@@ -441,8 +557,10 @@ def main():
                 with st.form("month_filter_form", border=False):
                     for m in months:
                         m_count = len(overview_df[overview_df["帳單月份"] == m])
+                        banks_in_m = sorted(overview_df[overview_df["帳單月份"] == m]["銀行"].dropna().unique())
+                        bank_tag = f" 【{'、'.join(banks_in_m)}】" if banks_in_m else ""
                         st.checkbox(
-                            f"📅 {m} 帳單 ({m_count} 筆交易)",
+                            f"📅 {m} 帳單{bank_tag} ({m_count} 筆交易)",
                             key=f"cb_month_{m}"
                         )
 
@@ -735,7 +853,8 @@ def main():
                 st.subheader("🔥 最高花費前 10 筆明細")
 
             top10_df = filtered_df.sort_values(by="金額 (NT$)", ascending=False).head(10)
-            top10_display = top10_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]].copy().reset_index(drop=True)
+            top_cols = ["帳單月份", "銀行", "交易日期", "交易說明", "金額 (NT$)"] if "銀行" in top10_df.columns else ["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]
+            top10_display = top10_df[top_cols].copy().reset_index(drop=True)
             top10_display["交易日期"] = top10_display["交易日期"].dt.strftime('%Y-%m-%d')
 
             if "adder_reset_id" not in st.session_state:
@@ -745,6 +864,7 @@ def main():
 
             col_config = {
                 "金額 (NT$)": st.column_config.NumberColumn("金額 (NT$)", format="NT$ %,d"),
+                "銀行": st.column_config.TextColumn("銀行"),
                 "交易日期": st.column_config.TextColumn("交易日期"),
                 "交易說明": st.column_config.TextColumn("交易說明"),
                 "帳單月份": st.column_config.TextColumn("帳單月份")
@@ -843,7 +963,8 @@ def main():
             norm_kw = unicodedata.normalize('NFKC', kw.strip())
             detail_df = detail_df[detail_df["交易說明"].str.contains(norm_kw, case=False, na=False)]
 
-        detail_display = detail_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"]].copy()
+        cols = ["帳單月份", "銀行", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"] if "銀行" in detail_df.columns else ["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"]
+        detail_display = detail_df[cols].copy()
         detail_display["交易日期"] = detail_display["交易日期"].dt.strftime('%Y-%m-%d')
 
         st.dataframe(
@@ -869,7 +990,8 @@ def main():
             st.divider()
             st.subheader(f"🔄 已自動對銷的刷退明細 (共 {len(offset_df)} 筆項目)")
             st.caption("系統已將下列刷退/退款項目與對應之原消費對銷，這些項目均未計入上方任何統計與報表：")
-            offset_display = offset_df[["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"]].copy()
+            off_cols = ["帳單月份", "銀行", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"] if "銀行" in offset_df.columns else ["帳單月份", "交易日期", "交易說明", "金額 (NT$)", "來源檔名"]
+            offset_display = offset_df[off_cols].copy()
             offset_display["交易日期"] = offset_display["交易日期"].dt.strftime('%Y-%m-%d')
             st.dataframe(offset_display, use_container_width=True, hide_index=True)
 
