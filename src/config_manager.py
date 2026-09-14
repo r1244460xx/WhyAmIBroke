@@ -3,7 +3,7 @@ import json
 
 DEFAULT_CONFIG = {
     "bill_pdf_dir": "./bills",
-    "pdf_password": "",
+    "pdf_passwords": [],
     "min_amount_filter": 0,
     "categories": {},
     "excluded_keywords": []
@@ -31,13 +31,30 @@ class ConfigManager:
                 data["min_amount_filter"] = 0
                 updated = True
 
-            if "bill_pdf_dir" not in data:
-                data["bill_pdf_dir"] = DEFAULT_CONFIG["bill_pdf_dir"]
+            # Ensure bill_pdf_dir is fixed to ./bills
+            if data.get("bill_pdf_dir") != "./bills":
+                data["bill_pdf_dir"] = "./bills"
                 updated = True
 
-            if "pdf_password" not in data:
-                data["pdf_password"] = DEFAULT_CONFIG["pdf_password"]
+            # Migration & validation for multi-bank pdf_passwords
+            if "pdf_passwords" not in data or not isinstance(data["pdf_passwords"], list):
+                if "pdf_password" in data and data["pdf_password"]:
+                    data["pdf_passwords"] = [{"prefix": "TSB_", "password": str(data["pdf_password"])}]
+                else:
+                    data["pdf_passwords"] = []
                 updated = True
+            else:
+                # Validate items in pdf_passwords
+                valid_passwords = []
+                for item in data["pdf_passwords"]:
+                    if isinstance(item, dict) and "password" in item:
+                        valid_passwords.append({
+                            "prefix": str(item.get("prefix", "")),
+                            "password": str(item.get("password", ""))
+                        })
+                if valid_passwords != data["pdf_passwords"]:
+                    data["pdf_passwords"] = valid_passwords
+                    updated = True
 
             if "excluded_keywords" not in data or not isinstance(data["excluded_keywords"], list):
                 data["excluded_keywords"] = []
