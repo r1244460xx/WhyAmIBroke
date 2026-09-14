@@ -1,4 +1,29 @@
 {
   "bill_pdf_dir": "./bills",
-  "pdf_password": "YOUR_PDF_PASSWORD_HERE"
+  "min_amount_filter": 500,
+  "excluded_keywords": [
+    "大安文山有線電視股份有限公司"
+  ],
+  "pdf_passwords": [
+    {
+      "prefix": "TSB",
+      "password": "YOUR_PASSWORD"
+    },
+    {
+      "prefix": "富邦",
+      "password": "YOUR_PASSWORD"
+    },
+    {
+      "prefix": "永豐",
+      "password": "YOUR_PASSWORD"
+    },
+    {
+      "prefix": "星展",
+      "password": "YOUR_PASSWORD"
+    },
+    {
+      "prefix": "MEGA",
+      "password": "YOUR_PASSWORD"
+    }
+  ]
 }
