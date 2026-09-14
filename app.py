@@ -305,7 +305,7 @@ def load_and_parse_all_pdfs(pdf_dir, password_configs, _cache_version="v2.2_stra
     df = pd.DataFrame(all_records)
     if not df.empty:
         df["交易日期"] = pd.to_datetime(df["交易日期"], errors="coerce")
-        df = df.sort_values(by="交易日期", ascending=False)
+        df = df.sort_values(by="交易日期", ascending=True)
     
     return df, pd.DataFrame(scan_results)
 
@@ -848,8 +848,8 @@ def main():
                 st.session_state["top10_adder_open"] = True
             adder_open = st.session_state["top10_adder_open"]
 
-            # Sort all items in range strictly by date descending, then amount descending
-            table_df = filtered_df.sort_values(by=["交易日期", "金額 (NT$)"], ascending=[False, False])
+            # Sort all items in range strictly by date ascending (chronological order), then amount descending
+            table_df = filtered_df.sort_values(by=["交易日期", "金額 (NT$)"], ascending=[True, False])
             table_cols = ["帳單月份", "銀行", "交易日期", "交易說明", "金額 (NT$)"] if "銀行" in table_df.columns else ["帳單月份", "交易日期", "交易說明", "金額 (NT$)"]
             table_display = table_df[table_cols].copy().reset_index(drop=True)
             table_display["交易日期"] = table_display["交易日期"].dt.strftime('%Y-%m-%d')
